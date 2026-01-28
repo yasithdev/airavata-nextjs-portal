@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient, applicationsApi } from "@/lib/api";
-import type { ComputeResourceDescription, GroupResourceProfile, ApplicationDeploymentDescription } from "@/types";
+import { apiClient, applicationsApi, preferencesApi } from "@/lib/api";
+import { useGateway } from "@/contexts/GatewayContext";
 
 interface Props {
   data: any;
@@ -17,14 +17,15 @@ interface Props {
 }
 
 export function ComputeResourceStep({ data, onUpdate, onNext, onBack }: Props) {
+  const { effectiveGatewayId } = useGateway();
+  const gatewayId = effectiveGatewayId || '';
+  // TODO: Get actual user ID from session when available
+  const userId = '';
+
+  // Fetch compute resources
   const { data: computeResourcesMap } = useQuery({
     queryKey: ["compute-resources"],
     queryFn: () => apiClient.get<Record<string, string>>("/api/v1/compute-resources"),
-  });
-
-  const { data: groupProfiles } = useQuery({
-    queryKey: ["group-resource-profiles"],
-    queryFn: () => apiClient.get<GroupResourceProfile[]>("/api/v1/group-resource-profiles"),
   });
 
   // Get application module ID from the selected application
@@ -35,6 +36,18 @@ export function ComputeResourceStep({ data, onUpdate, onNext, onBack }: Props) {
     queryKey: ["application-deployments", appModuleId],
     queryFn: () => appModuleId ? applicationsApi.listDeployments(appModuleId) : Promise.resolve([]),
     enabled: !!appModuleId,
+  });
+
+  // Fetch resolved preferences for the selected compute resource
+  const { data: resolvedPreferences } = useQuery({
+    queryKey: ["preferences", "resolved", "COMPUTE", data.computeResourceId, gatewayId, userId],
+    queryFn: () => preferencesApi.resolveComputePreferences(
+      data.computeResourceId,
+      gatewayId,
+      userId,
+      [] // TODO: Add user's group IDs
+    ),
+    enabled: !!data.computeResourceId && !!gatewayId,
   });
 
   // Convert compute resources map to array for rendering
@@ -80,28 +93,6 @@ export function ComputeResourceStep({ data, onUpdate, onNext, onBack }: Props) {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <Label>Group Resource Profile (Optional)</Label>
-        <Select
-          value={data.groupResourceProfileId || ""}
-          onValueChange={(value) => onUpdate({ groupResourceProfileId: value })}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select a group resource profile" />
-          </SelectTrigger>
-          <SelectContent>
-            {groupProfiles?.map((profile) => (
-              <SelectItem key={profile.groupResourceProfileId} value={profile.groupResourceProfileId}>
-                {profile.groupResourceProfileName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <p className="text-sm text-muted-foreground">
-          Optional: Select a group resource profile to apply specific resource preferences
-        </p>
-      </div>
-
-      <div className="space-y-2">
         <Label>Compute Resource *</Label>
         <div className="grid gap-3 md:grid-cols-2">
           {computeResources.map((resource) => (
@@ -125,6 +116,25 @@ export function ComputeResourceStep({ data, onUpdate, onNext, onBack }: Props) {
           <p className="text-sm text-muted-foreground">No compute resources available. Please configure them in Admin.</p>
         )}
       </div>
+
+      {/* Show resolved preferences when a resource is selected */}
+      {data.computeResourceId && resolvedPreferences && Object.keys(resolvedPreferences).length > 0 && (
+        <div className="space-y-2">
+          <Label>Resource Configuration</Label>
+          <div className="p-4 border rounded-lg bg-muted/50">
+            <p className="text-sm text-muted-foreground mb-2">
+              Preferences applied from gateway, group, and user settings:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(resolvedPreferences).map(([key, value]) => (
+                <Badge key={key} variant="secondary" className="font-mono text-xs">
+                  {key}: {value}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {data.computeResourceId && filteredDeployments && filteredDeployments.length > 0 && (
         <div className="space-y-2">

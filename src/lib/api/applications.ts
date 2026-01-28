@@ -98,4 +98,10 @@ export const applicationsApi = {
   deleteDeployment: async (deploymentId: string): Promise<void> => {
     return apiClient.delete(`/api/v1/application-deployments/${deploymentId}`);
   },
+
+  getDeploymentsByCredential: async (credentialToken: string): Promise<ApplicationDeploymentDescription[]> => {
+    return apiClient.get<ApplicationDeploymentDescription[]>(
+      `/api/v1/application-deployments?credentialToken=${encodeURIComponent(credentialToken)}`
+    );
+  },
 };

@@ -428,85 +428,95 @@ export interface AiravataWorkflow {
   workflowOutputs?: OutputDataObjectType[];
 }
 
-// User Resource Profile
-export interface UserResourceProfile {
-  userId: string;
-  gatewayID: string;
-  credentialStoreToken?: string;
-  userComputeResourcePreferences?: UserComputeResourcePreference[];
-  userStoragePreferences?: UserStoragePreference[];
-  identityServerTenant?: string;
-  identityServerPwdCredToken?: string;
+// Preference System - Multi-level preferences (USER > GROUP > GATEWAY)
+export enum PreferenceLevel {
+  GATEWAY = 'GATEWAY',
+  GROUP = 'GROUP',
+  USER = 'USER',
 }
 
-export interface UserComputeResourcePreference {
-  computeResourceId: string;
-  loginUserName?: string;
-  preferredBatchQueue?: string;
-  scratchLocation?: string;
-  allocationProjectNumber?: string;
-  resourceSpecificCredentialStoreToken?: string;
-  qualityOfService?: string;
-  reservation?: string;
-  reservationStartTime?: number;
-  reservationEndTime?: number;
-  validated?: boolean;
+export enum PreferenceResourceType {
+  COMPUTE = 'COMPUTE',
+  STORAGE = 'STORAGE',
+  APPLICATION = 'APPLICATION',
+  CREDENTIAL = 'CREDENTIAL',
 }
 
-export interface UserStoragePreference {
-  storageResourceId: string;
-  loginUserName?: string;
-  fileSystemRootLocation?: string;
-  resourceSpecificCredentialStoreToken?: string;
-}
-
-// Group Resource Profile
-export interface GroupResourceProfile {
-  gatewayId: string;
-  groupResourceProfileId: string;
-  groupResourceProfileName?: string;
-  computePreferences?: GroupComputeResourcePreference[];
-  computeResourcePolicies?: ComputeResourcePolicy[];
-  batchQueueResourcePolicies?: BatchQueueResourcePolicy[];
-  creationTime?: number;
+export interface Preference {
+  id?: number;
+  resourceType: PreferenceResourceType;
+  resourceId: string;
+  ownerId: string;
+  level: PreferenceLevel;
+  key: string;
+  value: string;
+  createdTime?: number;
   updatedTime?: number;
-  defaultCredentialStoreToken?: string;
 }
 
-export interface GroupComputeResourcePreference {
-  computeResourceId: string;
-  groupResourceProfileId: string;
-  overridebyAiravata?: boolean;
-  loginUserName?: string;
-  preferredBatchQueue?: string;
-  scratchLocation?: string;
-  allocationProjectNumber?: string;
-  resourceSpecificCredentialStoreToken?: string;
-  usageReportingGatewayId?: string;
-  qualityOfService?: string;
-  reservation?: string;
-  reservationStartTime?: number;
-  reservationEndTime?: number;
-  sshAccountProvisioner?: string;
-  sshAccountProvisionerAdditionalInfo?: string;
+export interface ResolvedPreferences {
+  [key: string]: string;
 }
 
-export interface ComputeResourcePolicy {
-  resourcePolicyId: string;
-  computeResourceId: string;
-  groupResourceProfileId: string;
-  allowedBatchQueues?: string[];
+export interface SetPreferenceRequest {
+  resourceType: PreferenceResourceType;
+  resourceId: string;
+  ownerId: string;
+  level: PreferenceLevel;
+  key: string;
+  value: string;
+  /** When true, this preference is enforced and cannot be overridden by lower-level preferences */
+  enforced?: boolean;
 }
 
-export interface BatchQueueResourcePolicy {
-  resourcePolicyId: string;
-  computeResourceId: string;
-  groupResourceProfileId: string;
-  queuename: string;
-  maxAllowedNodes?: number;
-  maxAllowedCores?: number;
-  maxAllowedWalltime?: number;
+// Resource Access - Access grants linking resources to credentials
+export interface ResourceAccess {
+  id?: number;
+  resourceType: PreferenceResourceType;
+  resourceId: string;
+  ownerId: string;
+  ownerType: PreferenceLevel;
+  gatewayId: string;
+  credentialToken?: string;
+  enabled: boolean;
+  createdTime?: number;
+  updatedTime?: number;
 }
+
+export interface AccessGrantRequest {
+  resourceType: PreferenceResourceType;
+  resourceId: string;
+  ownerId: string;
+  ownerType: PreferenceLevel;
+  gatewayId: string;
+  credentialToken?: string;
+  enabled?: boolean;
+}
+
+export interface AccessGrantUpdateRequest {
+  credentialToken?: string;
+  enabled?: boolean;
+}
+
+// Common preference keys for compute resources
+export const ComputePreferenceKeys = {
+  LOGIN_USERNAME: 'loginUserName',
+  PREFERRED_BATCH_QUEUE: 'preferredBatchQueue',
+  SCRATCH_LOCATION: 'scratchLocation',
+  ALLOCATION_PROJECT_NUMBER: 'allocationProjectNumber',
+  CREDENTIAL_TOKEN: 'credentialToken',
+  QUALITY_OF_SERVICE: 'qualityOfService',
+  RESERVATION: 'reservation',
+  RESERVATION_START_TIME: 'reservationStartTime',
+  RESERVATION_END_TIME: 'reservationEndTime',
+} as const;
+
+// Common preference keys for storage resources
+export const StoragePreferenceKeys = {
+  LOGIN_USERNAME: 'loginUserName',
+  FILE_SYSTEM_ROOT_LOCATION: 'fileSystemRootLocation',
+  CREDENTIAL_TOKEN: 'credentialToken',
+} as const;
 
 // Session/Auth types
 export interface User {
@@ -515,4 +525,42 @@ export interface User {
   email: string;
   gatewayId: string;
   roles?: string[];
+}
+
+// Credential types
+export interface CredentialSummary {
+  token: string;
+  gatewayId: string;
+  username?: string;
+  description?: string;
+  publicKey?: string;
+  persistedTime?: number;
+  type: CredentialType;
+}
+
+export enum CredentialType {
+  SSH = 'SSH',
+  PASSWORD = 'PASSWORD',
+  CERTIFICATE = 'CERTIFICATE',
+}
+
+export interface SSHCredential {
+  token?: string;
+  gatewayId: string;
+  username: string;
+  passphrase?: string;
+  publicKey?: string;
+  privateKey?: string;
+  description?: string;
+  persistedTime?: number;
+}
+
+export interface PasswordCredential {
+  token?: string;
+  gatewayId: string;
+  portalUserName: string;
+  loginUserName: string;
+  password: string;
+  description?: string;
+  persistedTime?: number;
 }

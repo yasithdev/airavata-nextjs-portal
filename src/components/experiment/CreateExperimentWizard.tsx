@@ -1,20 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { ApplicationSelectStep } from "./steps/ApplicationSelectStep";
-import { InputConfigurationStep } from "./steps/InputConfigurationStep";
-import { ComputeResourceStep } from "./steps/ComputeResourceStep";
-import { QueueSettingsStep } from "./steps/QueueSettingsStep";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ConfigureApplicationStep } from "./steps/ConfigureApplicationStep";
+import { ConfigureRuntimeStep } from "./steps/ConfigureRuntimeStep";
 import { ReviewStep } from "./steps/ReviewStep";
-import { useCreateExperiment, useLaunchExperiment } from "@/hooks";
+import { ExperimentStepper } from "./ExperimentStepper";
+import { useCreateExperiment, useLaunchExperiment, useApplicationInterface } from "@/hooks";
 import type { ExperimentModel, ApplicationInterfaceDescription, InputDataObjectType, ComputationalResourceSchedulingModel } from "@/types";
 import { ExperimentType } from "@/types";
 import { toast } from "@/hooks/useToast";
+import { getExperimentPermalink } from "@/lib/permalink";
 
 interface WizardData {
   projectId?: string;
@@ -29,22 +27,67 @@ interface WizardData {
 }
 
 const steps = [
-  { id: 1, name: "Select Application", description: "Choose the application to run" },
-  { id: 2, name: "Configure Inputs", description: "Set input parameters and files" },
-  { id: 3, name: "Compute Resource", description: "Select where to run" },
-  { id: 4, name: "Queue Settings", description: "Configure job settings" },
-  { id: 5, name: "Review", description: "Review and launch" },
+  { id: 1, name: "Configure Application", description: "Select application and configure inputs" },
+  { id: 2, name: "Configure Runtime", description: "Select compute resource and queue settings" },
+  { id: 3, name: "Review", description: "Review and launch" },
 ];
 
-export function CreateExperimentWizard() {
+interface CreateExperimentWizardProps {
+  initialApplication?: ApplicationInterfaceDescription;
+  initialProjectId?: string;
+  onClose?: () => void;
+}
+
+export function CreateExperimentWizard({ 
+  initialApplication,
+  initialProjectId,
+  onClose,
+}: CreateExperimentWizardProps = {}) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
   const [currentStep, setCurrentStep] = useState(1);
+  
+  // Get appId from URL if present
+  const appIdFromUrl = searchParams?.get("appId");
+  const { data: applicationFromUrl } = useApplicationInterface(appIdFromUrl || "");
+  
+  // Determine the initial application: prop > URL > undefined
+  const effectiveInitialApplication = initialApplication || applicationFromUrl;
+  
   const [wizardData, setWizardData] = useState<WizardData>({
     experimentName: "",
     description: "",
     inputs: [],
+    projectId: initialProjectId || searchParams?.get("projectId") || undefined,
+    application: effectiveInitialApplication,
   });
+
+  // Update wizard data when initial application is loaded or changes
+  useEffect(() => {
+    if (effectiveInitialApplication) {
+      setWizardData((prev) => {
+        // Only update if the application is different to avoid unnecessary re-renders
+        if (prev.application?.applicationInterfaceId !== effectiveInitialApplication.applicationInterfaceId) {
+          return {
+            ...prev,
+            application: effectiveInitialApplication,
+            experimentName: `${effectiveInitialApplication.applicationName} Experiment`,
+            inputs: effectiveInitialApplication.applicationInputs || [],
+          };
+        }
+        return prev;
+      });
+    }
+  }, [effectiveInitialApplication]);
+
+  // Update projectId if it changes in URL or prop
+  useEffect(() => {
+    const projectId = initialProjectId || searchParams?.get("projectId");
+    if (projectId) {
+      setWizardData((prev) => ({ ...prev, projectId }));
+    }
+  }, [searchParams, initialProjectId]);
 
   const createExperiment = useCreateExperiment();
   const launchExperiment = useLaunchExperiment();
@@ -70,8 +113,12 @@ export function CreateExperimentWizard() {
       const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
       const userName = session?.user?.email || "admin";
 
+      if (!wizardData.projectId) {
+        throw new Error("Project is required. Please select a project.");
+      }
+
       const experiment: Partial<ExperimentModel> = {
-        projectId: wizardData.projectId || "DEFAULT",
+        projectId: wizardData.projectId,
         gatewayId,
         experimentType: ExperimentType.SINGLE_APPLICATION,
         userName,
@@ -128,7 +175,16 @@ export function CreateExperimentWizard() {
         });
       }
 
-      router.push(`/experiments/${result.experimentId}`);
+      // Close modal if it was opened in a modal, otherwise navigate
+      if (onClose) {
+        onClose();
+        // Small delay to allow modal to close before navigation
+        setTimeout(() => {
+          router.push(getExperimentPermalink(result.experimentId));
+        }, 100);
+      } else {
+        router.push(getExperimentPermalink(result.experimentId));
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -138,57 +194,54 @@ export function CreateExperimentWizard() {
     }
   };
 
-  const progress = (currentStep / steps.length) * 100;
+  const isModalMode = !!onClose;
+
+  const stepContent = (
+    <div className="space-y-6">
+      {currentStep === 1 && (
+        <ConfigureApplicationStep
+          data={wizardData}
+          onUpdate={updateWizardData}
+          onNext={nextStep}
+        />
+      )}
+      {currentStep === 2 && (
+        <ConfigureRuntimeStep
+          data={wizardData}
+          onUpdate={updateWizardData}
+          onNext={nextStep}
+          onBack={prevStep}
+        />
+      )}
+      {currentStep === 3 && (
+        <ReviewStep
+          data={wizardData}
+          onBack={prevStep}
+          onSubmit={handleSubmit}
+          isSubmitting={createExperiment.isPending || launchExperiment.isPending}
+        />
+      )}
+    </div>
+  );
+
+  if (isModalMode) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <ExperimentStepper steps={steps} currentStep={currentStep} />
+        </div>
+        {stepContent}
+      </div>
+    );
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Step {currentStep} of {steps.length}: {steps[currentStep - 1].name}</CardTitle>
-        <CardDescription>{steps[currentStep - 1].description}</CardDescription>
-        <Progress value={progress} className="mt-4" />
+        <ExperimentStepper steps={steps} currentStep={currentStep} />
       </CardHeader>
       <CardContent>
-        <div className="space-y-6">
-          {currentStep === 1 && (
-            <ApplicationSelectStep
-              data={wizardData}
-              onUpdate={updateWizardData}
-              onNext={nextStep}
-            />
-          )}
-          {currentStep === 2 && (
-            <InputConfigurationStep
-              data={wizardData}
-              onUpdate={updateWizardData}
-              onNext={nextStep}
-              onBack={prevStep}
-            />
-          )}
-          {currentStep === 3 && (
-            <ComputeResourceStep
-              data={wizardData}
-              onUpdate={updateWizardData}
-              onNext={nextStep}
-              onBack={prevStep}
-            />
-          )}
-          {currentStep === 4 && (
-            <QueueSettingsStep
-              data={wizardData}
-              onUpdate={updateWizardData}
-              onNext={nextStep}
-              onBack={prevStep}
-            />
-          )}
-          {currentStep === 5 && (
-            <ReviewStep
-              data={wizardData}
-              onBack={prevStep}
-              onSubmit={handleSubmit}
-              isSubmitting={createExperiment.isPending || launchExperiment.isPending}
-            />
-          )}
-        </div>
+        {stepContent}
       </CardContent>
     </Card>
   );

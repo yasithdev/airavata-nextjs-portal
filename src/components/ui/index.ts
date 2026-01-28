@@ -14,3 +14,5 @@ export { Skeleton } from "./skeleton";
 export { Progress } from "./progress";
 export { Separator } from "./separator";
 export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption } from "./table";
+export { Switch } from "./switch";
+export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip";

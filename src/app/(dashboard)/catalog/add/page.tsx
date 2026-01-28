@@ -20,7 +20,11 @@ export default function AddCatalogResourcePage() {
         title: "Resource created",
         description: "Your catalog resource has been created successfully.",
       });
-      router.push(`/catalog/${resource.type}/${result.id}`);
+      // Use permalink based on resource type
+      const permalink = resource.type === "DATASET" 
+        ? `/datasets/${result.id}`
+        : `/repositories/${result.id}`;
+      router.push(permalink);
     } catch (error) {
       toast({
         title: "Error",

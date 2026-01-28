@@ -1,23 +1,26 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Search, BookOpen, Database, Brain, GitBranch } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, Search, BookOpen, Database, Brain, GitBranch, AppWindow } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { ResourceGrid } from "@/components/catalog/ResourceGrid";
-import { useCatalogResources, useCatalogTags } from "@/hooks";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ResourceCard } from "@/components/catalog/ResourceCard";
+import { ApplicationCard } from "@/components/application/ApplicationCard";
+import { useCatalogResources, useCatalogTags, useApplicationInterfaces } from "@/hooks";
 import { ResourceType, type ResourceFilters as Filters } from "@/types/catalog";
 import { cn } from "@/lib/utils";
+import type { ApplicationInterfaceDescription } from "@/types";
 
-// Resource type configuration with icons and labels
+// Resource type configuration with icons and labels (order: applications, repositories, datasets)
 const RESOURCE_TYPES = [
   { type: null, label: "All", icon: BookOpen },
-  { type: ResourceType.NOTEBOOK, label: "Notebooks", icon: BookOpen },
+  { type: "APPLICATION", label: "Applications", icon: AppWindow },
+  { type: ResourceType.REPOSITORY, label: "Repositories", icon: GitBranch },
   { type: ResourceType.DATASET, label: "Datasets", icon: Database },
-  { type: ResourceType.MODEL, label: "Models", icon: Brain },
-  { type: ResourceType.REPOSITORY, label: "Repos", icon: GitBranch },
 ] as const;
 
 export default function CatalogPage() {
@@ -26,9 +29,11 @@ export default function CatalogPage() {
     pageNumber: 0,
   });
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedType, setSelectedType] = useState<string | ResourceType | null>(null);
 
-  const { data: resources, isLoading } = useCatalogResources(filters);
+  const { data: resources, isLoading: resourcesLoading } = useCatalogResources(filters);
   const { data: allTags } = useCatalogTags();
+  const { data: applications, isLoading: applicationsLoading } = useApplicationInterfaces();
 
   // Handle search with debounce
   const handleSearchChange = (value: string) => {
@@ -40,8 +45,13 @@ export default function CatalogPage() {
     return () => clearTimeout(timer);
   };
 
-  const selectResourceType = (type: ResourceType | null) => {
-    setFilters({ ...filters, type: type || undefined });
+  const selectResourceType = (type: string | ResourceType | null) => {
+    setSelectedType(type);
+    if (type === "APPLICATION") {
+      // Don't set catalog filters for applications
+      return;
+    }
+    setFilters({ ...filters, type: type === null ? undefined : type as ResourceType });
   };
 
   const toggleTag = (tagId: string) => {
@@ -55,6 +65,53 @@ export default function CatalogPage() {
     });
   };
 
+  // Filter applications by search
+  const filteredApplications = useMemo(() => {
+    if (!applications) return [];
+    if (selectedType !== null && selectedType !== "APPLICATION") return [];
+    if (!searchTerm) return applications;
+    const searchLower = searchTerm.toLowerCase();
+    return applications.filter((app) =>
+      app.applicationName.toLowerCase().includes(searchLower) ||
+      app.applicationDescription?.toLowerCase().includes(searchLower)
+    );
+  }, [applications, searchTerm, selectedType]);
+
+  // Filter resources by search (already filtered by type via filters)
+  const filteredResources = useMemo(() => {
+    if (!resources) return [];
+    if (selectedType === "APPLICATION") return [];
+    return resources;
+  }, [resources, selectedType]);
+
+  // Combine all items; order: applications, repositories, datasets
+  const allItems = useMemo(() => {
+    const items: Array<{ type: "APPLICATION" | ResourceType; data: ApplicationInterfaceDescription | any }> = [];
+
+    if (selectedType === null) {
+      filteredApplications.forEach((app) => {
+        items.push({ type: "APPLICATION", data: app });
+      });
+      const repos = filteredResources.filter((r) => r.type === ResourceType.REPOSITORY);
+      const datasets = filteredResources.filter((r) => r.type === ResourceType.DATASET);
+      repos.forEach((r) => items.push({ type: ResourceType.REPOSITORY, data: r }));
+      datasets.forEach((r) => items.push({ type: ResourceType.DATASET, data: r }));
+    } else if (selectedType === "APPLICATION") {
+      filteredApplications.forEach((app) => {
+        items.push({ type: "APPLICATION", data: app });
+      });
+    } else {
+      filteredResources.forEach((resource) => {
+        items.push({ type: resource.type, data: resource });
+      });
+    }
+
+    return items;
+  }, [filteredApplications, filteredResources, selectedType]);
+
+  const isLoading = resourcesLoading || applicationsLoading;
+  const hasResults = allItems.length > 0;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -62,7 +119,7 @@ export default function CatalogPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Catalog</h1>
           <p className="text-muted-foreground">
-            Discover and share research resources
+            Discover applications and research resources
           </p>
         </div>
         <Button asChild>
@@ -97,7 +154,7 @@ export default function CatalogPage() {
               onClick={() => selectResourceType(type)}
               className={cn(
                 "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
-                filters.type === type
+                (type === null ? selectedType === null : selectedType === type)
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-background/50"
               )}
@@ -109,8 +166,8 @@ export default function CatalogPage() {
         </div>
       </div>
 
-      {/* Tags */}
-      {allTags && allTags.length > 0 && (
+      {/* Tags - only show for catalog resources, not applications */}
+      {selectedType !== "APPLICATION" && allTags && allTags.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           {allTags.map((tag) => (
             <Badge
@@ -125,8 +182,42 @@ export default function CatalogPage() {
         </div>
       )}
 
-      {/* Results */}
-      <ResourceGrid resources={resources} isLoading={isLoading} />
+      {/* Results - Unified Card Grid */}
+      {isLoading ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-80" />
+          ))}
+        </div>
+      ) : !hasResults ? (
+        <Card>
+          <CardContent className="py-16">
+            <div className="text-center">
+              <Search className="mx-auto h-12 w-12 text-muted-foreground/50" />
+              <h3 className="mt-4 text-lg font-semibold">No results found</h3>
+              <p className="text-muted-foreground mt-2">
+                Try adjusting your filters or search terms
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {allItems.map((item) => {
+            if (item.type === "APPLICATION") {
+              const app = item.data as ApplicationInterfaceDescription;
+              return (
+                <ApplicationCard key={`app-${app.applicationInterfaceId}`} application={app} />
+              );
+            } else {
+              const resource = item.data;
+              return (
+                <ResourceCard key={`resource-${resource.id}`} resource={resource} />
+              );
+            }
+          })}
+        </div>
+      )}
     </div>
   );
 }

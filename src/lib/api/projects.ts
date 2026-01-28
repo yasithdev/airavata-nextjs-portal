@@ -25,7 +25,10 @@ export const projectsApi = {
   },
 
   create: async (project: Partial<Project>, gatewayId: string): Promise<{ projectId: string }> => {
-    return apiClient.post<{ projectId: string }>(`/api/v1/projects?gatewayId=${gatewayId}`, project);
+    // Use params option instead of URL string to avoid duplication with interceptor
+    return apiClient.post<{ projectId: string }>(`/api/v1/projects`, project, {
+      params: { gatewayId }
+    });
   },
 
   update: async (projectId: string, project: Partial<Project>): Promise<void> => {

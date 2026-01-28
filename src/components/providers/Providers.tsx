@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { GatewayProvider } from "@/contexts/GatewayContext";
+import { CreateExperimentModalProvider } from "@/contexts/CreateExperimentModalContext";
 
 interface ProvidersProps {
   children: React.ReactNode;
@@ -42,8 +43,10 @@ export function Providers({ children }: ProvidersProps) {
     <SessionProvider>
       <QueryClientProvider client={queryClient}>
         <GatewayProvider>
-          {children}
-          <Toaster />
+          <CreateExperimentModalProvider>
+            {children}
+            <Toaster />
+          </CreateExperimentModalProvider>
         </GatewayProvider>
       </QueryClientProvider>
     </SessionProvider>

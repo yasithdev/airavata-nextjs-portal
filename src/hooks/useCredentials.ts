@@ -3,18 +3,17 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGateway } from "@/contexts/GatewayContext";
 import { credentialsApi, type SSHCredential, type PasswordCredential } from "@/lib/api/credentials";
+import { applicationsApi } from "@/lib/api/applications";
 
 export function useCredentials() {
-  const { effectiveGatewayId, isAllGatewaysMode } = useGateway();
+  const { effectiveGatewayId } = useGateway();
   const gatewayId = effectiveGatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
 
   return useQuery({
-    queryKey: ["credentials", gatewayId, isAllGatewaysMode],
-    queryFn: () => credentialsApi.list(isAllGatewaysMode ? undefined : gatewayId),
-    // Enable query in all gateways mode or when we have a specific gateway
-    enabled: isAllGatewaysMode || !!gatewayId,
-    // Credentials don't change often, so we can use a longer stale time
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    queryKey: ["credentials", gatewayId],
+    queryFn: () => credentialsApi.list(gatewayId),
+    enabled: !!effectiveGatewayId,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -50,5 +49,14 @@ export function useDeleteCredential() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["credentials"] });
     },
+  });
+}
+
+export function useDeploymentsByCredential(credentialToken: string | null) {
+  return useQuery({
+    queryKey: ["deployments-by-credential", credentialToken],
+    queryFn: () => credentialToken ? applicationsApi.getDeploymentsByCredential(credentialToken) : Promise.resolve([]),
+    enabled: !!credentialToken,
+    staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }

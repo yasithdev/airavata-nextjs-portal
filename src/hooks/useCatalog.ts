@@ -8,8 +8,18 @@ import type { CatalogResource, ResourceFilters } from "@/types/catalog";
 export function useCatalogResources(filters?: ResourceFilters) {
   return useQuery({
     queryKey: ["catalog-resources", filters],
-    queryFn: () => catalogApi.listPublic(filters),
+    queryFn: async () => {
+      try {
+        const resources = await catalogApi.listPublic(filters);
+        return resources || [];
+      } catch (error) {
+        console.error("Error fetching catalog resources:", error);
+        return [];
+      }
+    },
     enabled: true,
+    retry: 1,
+    staleTime: 30 * 1000, // 30 seconds
   });
 }
 
@@ -24,8 +34,18 @@ export function useCatalogResource(resourceId: string) {
 export function useCatalogTags() {
   return useQuery({
     queryKey: ["catalog-tags"],
-    queryFn: () => catalogApi.getAllTags(),
+    queryFn: async () => {
+      try {
+        const tags = await catalogApi.getAllTags();
+        return tags || [];
+      } catch (error) {
+        console.error("Error fetching catalog tags:", error);
+        return [];
+      }
+    },
     enabled: true,
+    retry: 1,
+    staleTime: 5 * 60 * 1000, // 5 minutes - tags don't change often
   });
 }
 

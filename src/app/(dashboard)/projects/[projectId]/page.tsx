@@ -10,6 +10,7 @@ import { useProject, useExperiments } from "@/hooks";
 import { formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { getExperimentStatusColor } from "@/lib/utils";
+import { getExperimentPermalink } from "@/lib/permalink";
 
 export default function ProjectDetailPage() {
   const params = useParams();
@@ -114,7 +115,7 @@ export default function ProjectDetailPage() {
               <FlaskConical className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <p className="text-muted-foreground">No experiments in this project</p>
               <Button asChild className="mt-4">
-                <Link href="/applications">Create Experiment</Link>
+                <Link href="/catalog">Create Experiment</Link>
               </Button>
             </div>
           ) : (
@@ -124,7 +125,7 @@ export default function ProjectDetailPage() {
                 return (
                   <Link
                     key={experiment.experimentId}
-                    href={`/experiments/${experiment.experimentId}`}
+                    href={getExperimentPermalink(experiment.experimentId)}
                     className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
                   >
                     <div>

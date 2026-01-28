@@ -15,6 +15,7 @@ import type { ExperimentModel } from "@/types";
 import { ExperimentState } from "@/types";
 import { formatDate, getExperimentStatusColor, isTerminalState } from "@/lib/utils";
 import { GatewayBadge } from "@/components/gateway/GatewayBadge";
+import { getExperimentPermalink } from "@/lib/permalink";
 
 interface ExperimentCardProps {
   experiment: ExperimentModel;
@@ -26,9 +27,10 @@ export function ExperimentCard({ experiment, onDelete, onCancel }: ExperimentCar
   const status = experiment.experimentStatus?.[0]?.state || "UNKNOWN";
   const canEdit = status === ExperimentState.CREATED;
   const canCancel = [ExperimentState.EXECUTING, ExperimentState.LAUNCHED, ExperimentState.SCHEDULED].includes(status as ExperimentState);
+  const experimentPermalink = getExperimentPermalink(experiment.experimentId);
 
   return (
-    <Link href={`/experiments/${experiment.experimentId}`}>
+    <Link href={experimentPermalink}>
       <Card className="cursor-pointer transition-shadow hover:shadow-md h-full">
         <CardHeader className="flex flex-row items-start justify-between space-y-0">
           <div className="flex items-start gap-3">
@@ -56,14 +58,14 @@ export function ExperimentCard({ experiment, onDelete, onCancel }: ExperimentCar
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem asChild>
-                  <Link href={`/experiments/${experiment.experimentId}`}>
+                  <Link href={experimentPermalink}>
                     <Eye className="mr-2 h-4 w-4" />
                     View Details
                   </Link>
                 </DropdownMenuItem>
                 {canEdit && (
                   <DropdownMenuItem asChild>
-                    <Link href={`/experiments/${experiment.experimentId}/edit`}>
+                    <Link href={`${experimentPermalink}/edit`}>
                       <Pencil className="mr-2 h-4 w-4" />
                       Edit
                     </Link>

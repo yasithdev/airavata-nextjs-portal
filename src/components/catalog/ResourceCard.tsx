@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FileText, Database, GitBranch, Box, Star } from "lucide-react";
+import { Database, GitBranch } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,21 +15,17 @@ interface Props {
 export function ResourceCard({ resource }: Props) {
   const getIcon = () => {
     switch (resource.type) {
-      case ResourceType.NOTEBOOK:
-        return <FileText className="h-5 w-5" />;
       case ResourceType.DATASET:
         return <Database className="h-5 w-5" />;
       case ResourceType.REPOSITORY:
         return <GitBranch className="h-5 w-5" />;
-      case ResourceType.MODEL:
-        return <Box className="h-5 w-5" />;
       default:
-        return null;
+        return <GitBranch className="h-5 w-5" />;
     }
   };
 
   return (
-    <Link href={`/catalog/${resource.type.toLowerCase()}/${resource.id}`}>
+    <Link href={getCatalogResourcePermalink(resource.id, resource.type)}>
       <Card className="h-full transition-colors hover:bg-accent cursor-pointer">
         {resource.headerImage && (
           <div className="h-48 overflow-hidden rounded-t-lg">

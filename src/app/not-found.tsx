@@ -1,9 +1,16 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FileQuestion, Home, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useGateway } from "@/contexts/GatewayContext";
 
 export default function NotFound() {
+  const router = useRouter();
+  const { dashboardHref } = useGateway();
+
   return (
     <div className="flex items-center justify-center min-h-screen p-4">
       <Card className="max-w-md w-full">
@@ -20,14 +27,12 @@ export default function NotFound() {
         </CardHeader>
         <CardContent>
           <div className="flex justify-center gap-3">
-            <Button variant="outline" asChild>
-              <Link href="javascript:history.back()">
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Go Back
-              </Link>
+            <Button variant="outline" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Go Back
             </Button>
             <Button asChild>
-              <Link href="/dashboard">
+              <Link href={dashboardHref}>
                 <Home className="h-4 w-4 mr-2" />
                 Dashboard
               </Link>

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/utils";
-import type { CatalogResource, NotebookResource, DatasetResource, RepositoryResource, ModelResource } from "@/types/catalog";
+import type { CatalogResource, DatasetResource, RepositoryResource } from "@/types/catalog";
 import { ResourceType } from "@/types/catalog";
 
 interface Props {
@@ -15,36 +15,6 @@ interface Props {
 export function ResourceDetail({ resource }: Props) {
   const renderTypeSpecificDetails = () => {
     switch (resource.type) {
-      case ResourceType.NOTEBOOK:
-        const notebook = resource as NotebookResource;
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Notebook Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div>
-                <p className="text-sm text-muted-foreground">Path</p>
-                <p className="font-mono text-sm">{notebook.notebookPath}</p>
-              </div>
-              {notebook.jupyterServerUrl && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Jupyter Server</p>
-                  <a
-                    href={notebook.jupyterServerUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline flex items-center gap-1"
-                  >
-                    {notebook.jupyterServerUrl}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        );
-
       case ResourceType.DATASET:
         const dataset = resource as DatasetResource;
         return (
@@ -89,18 +59,20 @@ export function ResourceDetail({ resource }: Props) {
               <CardTitle>Repository Details</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <div>
-                <p className="text-sm text-muted-foreground">URL</p>
-                <a
-                  href={repo.repositoryUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline flex items-center gap-1 break-all"
-                >
-                  {repo.repositoryUrl}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
+              {repo.repositoryUrl && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Repository URL</p>
+                  <a
+                    href={repo.repositoryUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline flex items-center gap-1 break-all"
+                  >
+                    {repo.repositoryUrl}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
               {repo.branch && (
                 <div>
                   <p className="text-sm text-muted-foreground">Branch</p>
@@ -113,42 +85,50 @@ export function ResourceDetail({ resource }: Props) {
                   <p className="font-mono text-sm">{repo.commit.substring(0, 8)}</p>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        );
-
-      case ResourceType.MODEL:
-        const model = resource as ModelResource;
-        return (
-          <Card>
-            <CardHeader>
-              <CardTitle>Model Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {model.applicationInterfaceId && (
+              {repo.notebookPath && (
                 <div>
-                  <p className="text-sm text-muted-foreground">Application Interface</p>
-                  <p className="font-mono text-sm">{model.applicationInterfaceId}</p>
+                  <p className="text-sm text-muted-foreground">Notebook Path</p>
+                  <p className="font-mono text-sm">{repo.notebookPath}</p>
                 </div>
               )}
-              {model.framework && (
+              {repo.jupyterServerUrl && (
                 <div>
-                  <p className="text-sm text-muted-foreground">Framework</p>
-                  <Badge variant="outline">{model.framework}</Badge>
-                </div>
-              )}
-              {model.modelUrl && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Model URL</p>
+                  <p className="text-sm text-muted-foreground">Jupyter Server URL</p>
                   <a
-                    href={model.modelUrl}
+                    href={repo.jupyterServerUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary hover:underline flex items-center gap-1 break-all"
                   >
-                    {model.modelUrl}
+                    {repo.jupyterServerUrl}
                     <ExternalLink className="h-3 w-3" />
                   </a>
+                </div>
+              )}
+              {repo.modelUrl && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Model URL</p>
+                  <a
+                    href={repo.modelUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline flex items-center gap-1 break-all"
+                  >
+                    {repo.modelUrl}
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+              )}
+              {repo.applicationInterfaceId && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Application Interface</p>
+                  <p className="font-mono text-sm">{repo.applicationInterfaceId}</p>
+                </div>
+              )}
+              {repo.framework && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Framework</p>
+                  <Badge variant="outline">{repo.framework}</Badge>
                 </div>
               )}
             </CardContent>

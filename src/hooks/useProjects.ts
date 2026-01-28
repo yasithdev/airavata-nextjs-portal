@@ -6,18 +6,13 @@ import { projectsApi, type ListProjectsParams } from "@/lib/api/projects";
 import type { Project } from "@/types";
 
 export function useProjects(params?: ListProjectsParams) {
-  const { effectiveGatewayId, isAllGatewaysMode } = useGateway();
+  const { effectiveGatewayId } = useGateway();
   const gatewayId = effectiveGatewayId || params?.gatewayId;
 
   return useQuery({
-    queryKey: ["projects", { ...params, gatewayId, isAllGatewaysMode }],
-    queryFn: () =>
-      projectsApi.list({
-        gatewayId,
-        ...params,
-      }),
-    // Enable query even when gatewayId is undefined (all gateways mode)
-    enabled: isAllGatewaysMode || !!gatewayId,
+    queryKey: ["projects", { ...params, gatewayId }],
+    queryFn: () => projectsApi.list({ gatewayId, ...params }),
+    enabled: !!gatewayId,
   });
 }
 
@@ -31,14 +26,28 @@ export function useProject(projectId: string) {
 
 export function useCreateProject() {
   const queryClient = useQueryClient();
-  const { selectedGatewayId } = useGateway();
+  const { selectedGatewayId, accessibleGateways, isLoading: gatewaysLoading } = useGateway();
 
   return useMutation({
     mutationFn: (project: Partial<Project>) => {
-      if (!selectedGatewayId) {
-        throw new Error("Gateway must be selected");
+      // Wait for gateways to load if still loading
+      if (gatewaysLoading) {
+        throw new Error("Please wait for gateways to load before creating a project.");
       }
-      return projectsApi.create(project, selectedGatewayId);
+      
+      let gatewayId: string | undefined = selectedGatewayId ?? undefined;
+      if (!gatewayId && accessibleGateways.length > 0) {
+        gatewayId = accessibleGateways[0].gatewayId;
+      }
+      if (!gatewayId) {
+        gatewayId = process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+      }
+      
+      if (!gatewayId) {
+        throw new Error("Gateway must be selected. Please select a gateway before creating a project.");
+      }
+      
+      return projectsApi.create(project, gatewayId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });

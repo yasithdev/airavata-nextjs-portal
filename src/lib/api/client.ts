@@ -63,9 +63,18 @@ class ApiClient {
           
           // Add gateway ID to query params if not already present and endpoint supports it
           const selectedGatewayId = getSelectedGatewayId();
-          if (selectedGatewayId && config.url && !config.params?.gatewayId) {
-            // Only add gatewayId for endpoints that need it (not for gateway list itself)
-            if (!config.url.includes("/gateways") || config.url.includes("/gateways/")) {
+          if (selectedGatewayId && config.url) {
+            // Check if gatewayId is already in the URL string (e.g., ?gatewayId=...)
+            const urlHasGatewayId = config.url.includes("gatewayId=");
+            // Check if gatewayId is already in config.params
+            const paramsHasGatewayId = config.params?.gatewayId !== undefined;
+            
+            // Only add gatewayId if:
+            // 1. It's not already in the URL string
+            // 2. It's not already in config.params
+            // 3. The endpoint needs it (not for gateway list itself)
+            if (!urlHasGatewayId && !paramsHasGatewayId && 
+                (!config.url.includes("/gateways") || config.url.includes("/gateways/"))) {
               config.params = { ...config.params, gatewayId: selectedGatewayId };
             }
           }
@@ -79,6 +88,17 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response) => response,
       (error: AxiosError) => {
+        // Log the full error for debugging
+        console.error("API Error:", {
+          url: error.config?.url,
+          method: error.config?.method,
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          message: error.message,
+          code: error.code,
+        });
+        
         if (error.response?.status === 401) {
           // Handle unauthorized - redirect to login
           if (typeof window !== "undefined") {
@@ -88,7 +108,12 @@ class ApiClient {
         // Extract error message from response
         let errorMessage = error.message || "An error occurred";
         
-        if (error.response?.data) {
+        // Handle network errors specifically
+        if (error.code === 'ERR_NETWORK' || error.code === 'ECONNREFUSED') {
+          errorMessage = "Cannot connect to the server. Please ensure the backend service is running.";
+        } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+          errorMessage = "Request timed out. The server may be slow or unavailable.";
+        } else if (error.response?.data) {
           const data = error.response.data as any;
           if (typeof data === 'string') {
             errorMessage = data;
@@ -106,6 +131,7 @@ class ApiClient {
         const enhancedError = new Error(errorMessage);
         (enhancedError as any).status = error.response?.status;
         (enhancedError as any).response = error.response;
+        (enhancedError as any).code = error.code;
         return Promise.reject(enhancedError);
       }
     );

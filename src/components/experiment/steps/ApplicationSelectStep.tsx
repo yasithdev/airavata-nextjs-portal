@@ -1,13 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { useApplicationInterfaces, useProjects } from "@/hooks";
-import type { ApplicationInterfaceDescription } from "@/types";
+import { ApplicationSearchSelect } from "../ApplicationSearchSelect";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Props {
@@ -17,15 +14,10 @@ interface Props {
 }
 
 export function ApplicationSelectStep({ data, onUpdate, onNext }: Props) {
-  const [searchTerm, setSearchTerm] = useState("");
   const { data: applications, isLoading } = useApplicationInterfaces();
   const { data: projects } = useProjects();
 
-  const filteredApps = applications?.filter((app) =>
-    app.applicationName.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleSelectApplication = (app: ApplicationInterfaceDescription) => {
+  const handleSelectApplication = (app: any) => {
     onUpdate({
       application: app,
       experimentName: `${app.applicationName} Experiment`,
@@ -34,6 +26,10 @@ export function ApplicationSelectStep({ data, onUpdate, onNext }: Props) {
   };
 
   const handleNext = () => {
+    if (!data.projectId) {
+      alert("Please select a project. Experiments must be created within a project.");
+      return;
+    }
     if (!data.application) {
       alert("Please select an application");
       return;
@@ -48,22 +44,45 @@ export function ApplicationSelectStep({ data, onUpdate, onNext }: Props) {
   return (
     <div className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="project">Project (Optional)</Label>
+        <Label>Select Application *</Label>
+        <ApplicationSearchSelect
+          applications={applications}
+          selectedApplication={data.application}
+          onSelect={handleSelectApplication}
+          isLoading={isLoading}
+          placeholder="Search and select an application..."
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="project">Project <span className="text-destructive">*</span></Label>
         <Select
           value={data.projectId || ""}
           onValueChange={(value) => onUpdate({ projectId: value })}
+          required
         >
           <SelectTrigger>
-            <SelectValue placeholder="Select a project" />
+            <SelectValue placeholder="Select a project (required)" />
           </SelectTrigger>
           <SelectContent>
-            {projects?.map((project) => (
-              <SelectItem key={project.projectID} value={project.projectID}>
-                {project.name}
-              </SelectItem>
-            ))}
+            {projects && projects.length > 0 ? (
+              projects.map((project) => (
+                <SelectItem key={project.projectID} value={project.projectID}>
+                  {project.name}
+                </SelectItem>
+              ))
+            ) : (
+              <div className="p-2 text-sm text-muted-foreground">
+                No projects available. Please create a project first.
+              </div>
+            )}
           </SelectContent>
         </Select>
+        {(!projects || projects.length === 0) && (
+          <p className="text-xs text-muted-foreground">
+            You must create a project before creating experiments.
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -85,42 +104,6 @@ export function ApplicationSelectStep({ data, onUpdate, onNext }: Props) {
           placeholder="Enter experiment description (optional)"
         />
       </div>
-
-      <div className="space-y-2">
-        <Label>Select Application *</Label>
-        <div className="relative">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search applications..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {isLoading ? (
-        <div className="text-center text-muted-foreground">Loading applications...</div>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2">
-          {filteredApps?.map((app) => (
-            <Card
-              key={app.applicationInterfaceId}
-              className={`p-4 cursor-pointer transition-colors hover:bg-accent ${
-                data.application?.applicationInterfaceId === app.applicationInterfaceId
-                  ? "border-primary bg-accent"
-                  : ""
-              }`}
-              onClick={() => handleSelectApplication(app)}
-            >
-              <h3 className="font-semibold">{app.applicationName}</h3>
-              <p className="text-sm text-muted-foreground line-clamp-2">
-                {app.applicationDescription || "No description"}
-              </p>
-            </Card>
-          ))}
-        </div>
-      )}
 
       <div className="flex justify-end">
         <Button onClick={handleNext}>Next</Button>

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import { useSession } from "next-auth/react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,11 +15,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { noticesApi, type Notice } from "@/lib/api/notices";
 import { formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/useToast";
+import { useGateway } from "@/contexts/GatewayContext";
 
 export default function NoticesPage() {
-  const { data: session } = useSession();
+  const { effectiveGatewayId } = useGateway();
   const queryClient = useQueryClient();
-  const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const gatewayId = effectiveGatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -29,10 +29,15 @@ export default function NoticesPage() {
     priority: "NORMAL" as "LOW" | "NORMAL" | "HIGH",
   });
 
-  const { data: notices, isLoading } = useQuery({
+  const { data: notices, isLoading, error, isError } = useQuery({
     queryKey: ["notices", gatewayId],
     queryFn: () => noticesApi.list(gatewayId),
+    enabled: !!gatewayId,
+    retry: 1,
   });
+
+  // Debug logging
+  console.log("[Notices] gatewayId:", gatewayId, "isLoading:", isLoading, "isError:", isError, "notices:", notices);
 
   const createNotice = useMutation({
     mutationFn: (notice: Partial<Notice>) => noticesApi.create(notice),
@@ -74,16 +79,24 @@ export default function NoticesPage() {
         </Button>
       </div>
 
+      {isError && (
+        <Card className="border-destructive">
+          <CardContent className="py-6 text-center text-destructive">
+            Error loading notices: {error instanceof Error ? error.message : "Unknown error"}
+          </CardContent>
+        </Card>
+      )}
+
       {isLoading ? (
         <div className="space-y-3">
           {[...Array(3)].map((_, i) => (
             <Skeleton key={i} className="h-32" />
           ))}
         </div>
-      ) : notices && notices.length > 0 ? (
+      ) : !isError && notices && notices.length > 0 ? (
         <div className="space-y-3">
           {notices.map((notice) => (
-            <Card key={notice.noticeId}>
+            <Card key={notice.notificationId}>
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
@@ -101,7 +114,7 @@ export default function NoticesPage() {
                     variant="ghost"
                     size="sm"
                     className="text-destructive"
-                    onClick={() => deleteNotice.mutate(notice.noticeId)}
+                    onClick={() => deleteNotice.mutate(notice.notificationId)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -113,13 +126,13 @@ export default function NoticesPage() {
             </Card>
           ))}
         </div>
-      ) : (
+      ) : !isError ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
             No notices. Create one to announce updates to users.
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent>

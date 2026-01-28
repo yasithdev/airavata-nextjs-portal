@@ -49,7 +49,7 @@ export function UserList({ users, isLoading }: Props) {
                       <h3 className="font-semibold">
                         {user.firstName} {user.lastName}
                       </h3>
-                      {/* Show gateway badge */}
+                      {/* Show gateway badge - always show when gatewayId is present */}
                       {user.gatewayId && <GatewayBadge gatewayId={user.gatewayId} />}
                       {user.enabled ? (
                         <Badge variant="default" className="gap-1">

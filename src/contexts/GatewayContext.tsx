@@ -6,19 +6,18 @@ import { useQuery } from "@tanstack/react-query";
 import { gatewaysApi } from "@/lib/api/gateways";
 import type { Gateway } from "@/types";
 
-// Special value for "All Gateways" mode
-export const ALL_GATEWAYS = "__all__";
-
 interface GatewayContextType {
   selectedGatewayId: string | null;
   setSelectedGatewayId: (gatewayId: string | null) => void;
   accessibleGateways: Gateway[];
   isLoading: boolean;
   isRootUser: boolean;
-  isAllGatewaysMode: boolean;
   getGatewayName: (gatewayId: string) => string;
-  // For API calls - returns undefined when in "all gateways" mode to fetch all
   effectiveGatewayId: string | undefined;
+  /** True when root user has no gateways – system administration only, rest disabled */
+  hasNoGatewayAndIsRoot: boolean;
+  /** URL for Dashboard links: /<gateway>/dashboard, or /admin/gateways when hasNoGatewayAndIsRoot */
+  dashboardHref: string;
 }
 
 const GatewayContext = createContext<GatewayContextType | undefined>(undefined);
@@ -27,55 +26,51 @@ export function GatewayProvider({ children }: { children: ReactNode }) {
   const { data: session } = useSession();
   const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(null);
 
-  // Fetch accessible gateways
   const { data: gateways = [], isLoading } = useQuery({
     queryKey: ["gateways"],
     queryFn: () => gatewaysApi.list(),
     enabled: !!session?.accessToken,
   });
 
-  // Determine if user is root/admin (has access to all gateways or can create gateways)
-  const isRootUser = gateways.length > 0 && gateways.some(g => g.gatewayId === "default");
+  const isRootFromGateways = gateways.length > 0 && gateways.some((g) => g.gatewayId === "default");
+  /** When there are no gateways, we cannot infer root from the list. Set NEXT_PUBLIC_ASSUME_ROOT_WHEN_NO_GATEWAYS=true to treat as root (system-admin-only mode). */
+  const assumeRootWhenNoGateways =
+    process.env.NEXT_PUBLIC_ASSUME_ROOT_WHEN_NO_GATEWAYS === "true";
+  const isRootUser =
+    isRootFromGateways || (gateways.length === 0 && assumeRootWhenNoGateways);
+  const effectiveGatewayId = selectedGatewayId || undefined;
+  const hasNoGatewayAndIsRoot = gateways.length === 0 && isRootUser;
 
-  // Check if "All Gateways" mode is active
-  const isAllGatewaysMode = selectedGatewayId === ALL_GATEWAYS;
+  const getGatewayName = useCallback(
+    (gatewayId: string): string => {
+      const g = gateways.find((x) => x.gatewayId === gatewayId);
+      return g?.gatewayName ?? gatewayId;
+    },
+    [gateways]
+  );
 
-  // Get effective gateway ID for API calls (undefined means fetch all)
-  const effectiveGatewayId = isAllGatewaysMode ? undefined : (selectedGatewayId || undefined);
+  const dashboardHref = hasNoGatewayAndIsRoot
+    ? "/admin/gateways"
+    : selectedGatewayId && gateways.length > 0
+      ? `/${getGatewayName(selectedGatewayId)}/dashboard`
+      : "/default/dashboard";
 
-  // Helper to get gateway name from ID
-  const getGatewayName = useCallback((gatewayId: string): string => {
-    const gateway = gateways.find(g => g.gatewayId === gatewayId);
-    return gateway?.gatewayName || gatewayId;
-  }, [gateways]);
-
-  // Set initial gateway selection
   useEffect(() => {
-    if (gateways.length > 0 && !selectedGatewayId) {
-      // Check sessionStorage first, then session gateway, then first accessible gateway
-      const storedGatewayId = typeof window !== "undefined" ? sessionStorage.getItem("selectedGatewayId") : null;
-      const sessionGatewayId = session?.user?.gatewayId;
-      
-      let initialGateway: string;
-      // Allow "all" to be restored for root users
-      if (storedGatewayId === ALL_GATEWAYS && isRootUser) {
-        initialGateway = ALL_GATEWAYS;
-      } else if (storedGatewayId && gateways.some(g => g.gatewayId === storedGatewayId)) {
-        initialGateway = storedGatewayId;
-      } else if (sessionGatewayId && gateways.some(g => g.gatewayId === sessionGatewayId)) {
-        initialGateway = sessionGatewayId;
-      } else {
-        initialGateway = gateways[0].gatewayId;
-      }
-      
-      setSelectedGatewayId(initialGateway);
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("selectedGatewayId", initialGateway);
-      }
+    if (gateways.length === 0 || selectedGatewayId) return;
+    const stored = typeof window !== "undefined" ? sessionStorage.getItem("selectedGatewayId") : null;
+    const sessionGw = session?.user?.gatewayId;
+    let next: string;
+    if (stored && gateways.some((g) => g.gatewayId === stored)) {
+      next = stored;
+    } else if (sessionGw && gateways.some((g) => g.gatewayId === sessionGw)) {
+      next = sessionGw;
+    } else {
+      next = gateways[0].gatewayId;
     }
-  }, [gateways, session?.user?.gatewayId, selectedGatewayId, isRootUser]);
+    setSelectedGatewayId(next);
+    if (typeof window !== "undefined") sessionStorage.setItem("selectedGatewayId", next);
+  }, [gateways, session?.user?.gatewayId, selectedGatewayId]);
 
-  // Update sessionStorage when gateway changes
   useEffect(() => {
     if (selectedGatewayId && typeof window !== "undefined") {
       sessionStorage.setItem("selectedGatewayId", selectedGatewayId);
@@ -90,9 +85,10 @@ export function GatewayProvider({ children }: { children: ReactNode }) {
         accessibleGateways: gateways,
         isLoading,
         isRootUser,
-        isAllGatewaysMode,
         getGatewayName,
         effectiveGatewayId,
+        hasNoGatewayAndIsRoot,
+        dashboardHref,
       }}
     >
       {children}

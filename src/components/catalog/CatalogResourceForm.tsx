@@ -21,24 +21,26 @@ interface Props {
 }
 
 export function CatalogResourceForm({ resource, onSubmit, onCancel, isLoading }: Props) {
-  const [formData, setFormData] = useState<Partial<CatalogResource>>({
+  const [formData, setFormData] = useState<Partial<CatalogResource & { notebookPath?: string; jupyterServerUrl?: string; modelUrl?: string; applicationInterfaceId?: string; framework?: string }>>({
     name: resource?.name || "",
     description: resource?.description || "",
-    type: resource?.type || ResourceType.NOTEBOOK,
+    type: resource?.type || ResourceType.REPOSITORY,
     privacy: resource?.privacy || Privacy.PUBLIC,
     authors: resource?.authors || [],
     tags: resource?.tags || [],
-    notebookPath: resource?.type === ResourceType.NOTEBOOK ? (resource as any).notebookPath : "",
-    jupyterServerUrl: resource?.type === ResourceType.NOTEBOOK ? (resource as any).jupyterServerUrl : "",
-    datasetUrl: resource?.type === ResourceType.DATASET ? (resource as any).datasetUrl : "",
-    size: resource?.type === ResourceType.DATASET ? (resource as any).size : undefined,
-    format: resource?.type === ResourceType.DATASET ? (resource as any).format : "",
+    // Repository fields (can include notebook paths, model URLs, etc.)
     repositoryUrl: resource?.type === ResourceType.REPOSITORY ? (resource as any).repositoryUrl : "",
     branch: resource?.type === ResourceType.REPOSITORY ? (resource as any).branch : "",
     commit: resource?.type === ResourceType.REPOSITORY ? (resource as any).commit : "",
-    applicationInterfaceId: resource?.type === ResourceType.MODEL ? (resource as any).applicationInterfaceId : "",
-    modelUrl: resource?.type === ResourceType.MODEL ? (resource as any).modelUrl : "",
-    framework: resource?.type === ResourceType.MODEL ? (resource as any).framework : "",
+    notebookPath: resource?.type === ResourceType.REPOSITORY ? (resource as any).notebookPath : "",
+    jupyterServerUrl: resource?.type === ResourceType.REPOSITORY ? (resource as any).jupyterServerUrl : "",
+    modelUrl: resource?.type === ResourceType.REPOSITORY ? (resource as any).modelUrl : "",
+    applicationInterfaceId: resource?.type === ResourceType.REPOSITORY ? (resource as any).applicationInterfaceId : "",
+    framework: resource?.type === ResourceType.REPOSITORY ? (resource as any).framework : "",
+    // Dataset fields
+    datasetUrl: resource?.type === ResourceType.DATASET ? (resource as any).datasetUrl : "",
+    size: resource?.type === ResourceType.DATASET ? (resource as any).size : undefined,
+    format: resource?.type === ResourceType.DATASET ? (resource as any).format : "",
   });
 
   const [newAuthor, setNewAuthor] = useState("");
@@ -63,24 +65,19 @@ export function CatalogResourceForm({ resource, onSubmit, onCancel, isLoading }:
     };
 
     // Add type-specific fields
-    if (formData.type === ResourceType.NOTEBOOK) {
-      (resourceData as any).notebookPath = formData.notebookPath || "";
-      if (formData.jupyterServerUrl) {
-        (resourceData as any).jupyterServerUrl = formData.jupyterServerUrl;
-      }
-    } else if (formData.type === ResourceType.DATASET) {
+    if (formData.type === ResourceType.DATASET) {
       (resourceData as any).datasetUrl = formData.datasetUrl || "";
       if (formData.size) (resourceData as any).size = formData.size;
       if (formData.format) (resourceData as any).format = formData.format;
     } else if (formData.type === ResourceType.REPOSITORY) {
-      (resourceData as any).repositoryUrl = formData.repositoryUrl || "";
+      // Repository can have various fields (repository URL, notebook path, model URL, etc.)
+      if (formData.repositoryUrl) (resourceData as any).repositoryUrl = formData.repositoryUrl;
       if (formData.branch) (resourceData as any).branch = formData.branch;
       if (formData.commit) (resourceData as any).commit = formData.commit;
-    } else if (formData.type === ResourceType.MODEL) {
-      if (formData.applicationInterfaceId) {
-        (resourceData as any).applicationInterfaceId = formData.applicationInterfaceId;
-      }
+      if (formData.notebookPath) (resourceData as any).notebookPath = formData.notebookPath;
+      if (formData.jupyterServerUrl) (resourceData as any).jupyterServerUrl = formData.jupyterServerUrl;
       if (formData.modelUrl) (resourceData as any).modelUrl = formData.modelUrl;
+      if (formData.applicationInterfaceId) (resourceData as any).applicationInterfaceId = formData.applicationInterfaceId;
       if (formData.framework) (resourceData as any).framework = formData.framework;
     }
 
@@ -166,10 +163,8 @@ export function CatalogResourceForm({ resource, onSubmit, onCancel, isLoading }:
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ResourceType.NOTEBOOK}>Notebook</SelectItem>
                   <SelectItem value={ResourceType.DATASET}>Dataset</SelectItem>
                   <SelectItem value={ResourceType.REPOSITORY}>Repository</SelectItem>
-                  <SelectItem value={ResourceType.MODEL}>Model</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -194,35 +189,6 @@ export function CatalogResourceForm({ resource, onSubmit, onCancel, isLoading }:
       </Card>
 
       {/* Type-specific fields */}
-      {formData.type === ResourceType.NOTEBOOK && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Notebook Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="notebookPath">Notebook Path *</Label>
-              <Input
-                id="notebookPath"
-                value={formData.notebookPath}
-                onChange={(e) => setFormData({ ...formData, notebookPath: e.target.value })}
-                placeholder="/path/to/notebook.ipynb"
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="jupyterServerUrl">Jupyter Server URL (optional)</Label>
-              <Input
-                id="jupyterServerUrl"
-                value={formData.jupyterServerUrl}
-                onChange={(e) => setFormData({ ...formData, jupyterServerUrl: e.target.value })}
-                placeholder="https://jupyter.example.com"
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {formData.type === ResourceType.DATASET && (
         <Card>
           <CardHeader>
@@ -271,13 +237,12 @@ export function CatalogResourceForm({ resource, onSubmit, onCancel, isLoading }:
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="repositoryUrl">Repository URL *</Label>
+              <Label htmlFor="repositoryUrl">Repository URL (optional)</Label>
               <Input
                 id="repositoryUrl"
                 value={formData.repositoryUrl}
                 onChange={(e) => setFormData({ ...formData, repositoryUrl: e.target.value })}
                 placeholder="https://github.com/user/repo"
-                required
               />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
@@ -300,23 +265,22 @@ export function CatalogResourceForm({ resource, onSubmit, onCancel, isLoading }:
                 />
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {formData.type === ResourceType.MODEL && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Model Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="applicationInterfaceId">Application Interface ID (optional)</Label>
+              <Label htmlFor="notebookPath">Notebook Path (optional)</Label>
               <Input
-                id="applicationInterfaceId"
-                value={formData.applicationInterfaceId}
-                onChange={(e) => setFormData({ ...formData, applicationInterfaceId: e.target.value })}
-                placeholder="Application interface ID"
+                id="notebookPath"
+                value={formData.notebookPath}
+                onChange={(e) => setFormData({ ...formData, notebookPath: e.target.value })}
+                placeholder="/path/to/notebook.ipynb"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="jupyterServerUrl">Jupyter Server URL (optional)</Label>
+              <Input
+                id="jupyterServerUrl"
+                value={formData.jupyterServerUrl}
+                onChange={(e) => setFormData({ ...formData, jupyterServerUrl: e.target.value })}
+                placeholder="https://jupyter.example.com"
               />
             </div>
             <div className="space-y-2">
@@ -328,14 +292,25 @@ export function CatalogResourceForm({ resource, onSubmit, onCancel, isLoading }:
                 placeholder="https://example.com/model"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="framework">Framework (optional)</Label>
-              <Input
-                id="framework"
-                value={formData.framework}
-                onChange={(e) => setFormData({ ...formData, framework: e.target.value })}
-                placeholder="TensorFlow, PyTorch, etc."
-              />
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="applicationInterfaceId">Application Interface ID (optional)</Label>
+                <Input
+                  id="applicationInterfaceId"
+                  value={formData.applicationInterfaceId}
+                  onChange={(e) => setFormData({ ...formData, applicationInterfaceId: e.target.value })}
+                  placeholder="Application interface ID"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="framework">Framework (optional)</Label>
+                <Input
+                  id="framework"
+                  value={formData.framework}
+                  onChange={(e) => setFormData({ ...formData, framework: e.target.value })}
+                  placeholder="TensorFlow, PyTorch, etc."
+                />
+              </div>
             </div>
           </CardContent>
         </Card>

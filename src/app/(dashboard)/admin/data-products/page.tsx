@@ -44,7 +44,7 @@ export default function DataProductsPage() {
   const { data: session } = useSession();
   const queryClient = useQueryClient();
   const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
-  const userId = session?.user?.userName || session?.user?.email || "";
+  const userId = session?.user?.userName || session?.user?.userId || session?.user?.email || "default-admin";
   
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -61,14 +61,10 @@ export default function DataProductsPage() {
   const { data: products, isLoading, refetch } = useQuery({
     queryKey: ["data-products", gatewayId, userId, searchQuery],
     queryFn: () => {
-      if (!searchQuery.trim()) {
-        // If no search query, return empty array (backend requires search params)
-        return Promise.resolve([]);
-      }
       return dataProductsApi.search({
         gatewayId,
         userId,
-        productName: searchQuery,
+        productName: searchQuery.trim() || "", // Allow empty search to list all products
         limit: 100,
         offset: 0,
       });
@@ -102,6 +98,27 @@ export default function DataProductsPage() {
     },
   });
 
+  const updateMutation = useMutation({
+    mutationFn: ({ productUri, product }: { productUri: string; product: Partial<DataProductModel> }) =>
+      dataProductsApi.update(productUri, product),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["data-products"] });
+      toast({
+        title: "Data product updated",
+        description: "Data product has been updated successfully.",
+      });
+      setViewingProduct(null);
+      refetch();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update data product",
+        variant: "destructive",
+      });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (productUri: string) => dataProductsApi.delete(productUri),
     onSuccess: () => {
@@ -123,14 +140,7 @@ export default function DataProductsPage() {
   });
 
   const handleSearch = () => {
-    if (!searchQuery.trim()) {
-      toast({
-        title: "Search required",
-        description: "Please enter a product name to search",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Allow empty search to list all products
     refetch();
   };
 
@@ -173,7 +183,7 @@ export default function DataProductsPage() {
         <CardContent>
           <div className="flex gap-2">
             <Input
-              placeholder="Search by product name..."
+              placeholder="Search by product name (leave empty to list all)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
@@ -251,7 +261,7 @@ export default function DataProductsPage() {
           <CardContent className="py-16 text-center text-muted-foreground">
             {searchQuery
               ? "No data products found. Try a different search term."
-              : "Search for data products by name to view them."}
+              : "No data products found. Create a new data product or search for existing ones."}
           </CardContent>
         </Card>
       )}

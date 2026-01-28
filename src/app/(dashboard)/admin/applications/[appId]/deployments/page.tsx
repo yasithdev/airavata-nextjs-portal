@@ -1,14 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, AlertCircle, Loader2, Server } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -24,41 +24,74 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { applicationsApi, apiClient } from "@/lib/api";
 import { ApplicationDeploymentForm } from "@/components/applications/ApplicationDeploymentForm";
 import { toast } from "@/hooks/useToast";
-import type { ApplicationDeploymentDescription } from "@/types";
+import { useGateway } from "@/contexts/GatewayContext";
+import type { ApplicationDeploymentDescription, ApplicationInterfaceDescription } from "@/types";
 
 export default function ApplicationDeploymentsPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
-  const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { effectiveGatewayId } = useGateway();
+  const gatewayId = effectiveGatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
   const appInterfaceId = params.appId as string;
 
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingDeployment, setEditingDeployment] = useState<ApplicationDeploymentDescription | null>(null);
   const [deletingDeployment, setDeletingDeployment] = useState<ApplicationDeploymentDescription | null>(null);
+  const [selectedDeploymentId, setSelectedDeploymentId] = useState<string | null>(null);
 
-  // First, get the application interface to extract the module ID
-  const { data: appInterface, isLoading: isLoadingInterface, error: interfaceError } = useQuery({
+  // Fetch the application interface to get the module ID
+  const { 
+    data: appInterface, 
+    isLoading: isLoadingInterface, 
+    error: interfaceError,
+    refetch: refetchInterface
+  } = useQuery({
     queryKey: ["application-interface", appInterfaceId],
-    queryFn: () =>
-      apiClient.get<any>(`/api/v1/application-interfaces/${appInterfaceId}`),
+    queryFn: async () => {
+      console.log("[Deployments] Fetching application interface:", appInterfaceId);
+      const result = await apiClient.get<ApplicationInterfaceDescription>(`/api/v1/application-interfaces/${appInterfaceId}`);
+      console.log("[Deployments] Application interface result:", result);
+      return result;
+    },
     enabled: !!appInterfaceId,
-    retry: 1,
+    retry: 2,
+    staleTime: 30000, // Cache for 30 seconds
   });
 
+  // Extract module ID from the interface
   const appModuleId = appInterface?.applicationModules?.[0];
 
-  const { data: deployments, isLoading: isLoadingDeployments, error: deploymentsError } = useQuery({
+  // Debug logging
+  useEffect(() => {
+    console.log("[Deployments] appInterfaceId:", appInterfaceId);
+    console.log("[Deployments] appInterface:", appInterface);
+    console.log("[Deployments] appModuleId:", appModuleId);
+  }, [appInterfaceId, appInterface, appModuleId]);
+
+  // Fetch deployments for the module
+  const { 
+    data: deployments, 
+    isLoading: isLoadingDeployments, 
+    error: deploymentsError,
+    refetch: refetchDeployments
+  } = useQuery({
     queryKey: ["application-deployments", appModuleId],
-    queryFn: () =>
-      applicationsApi.listDeployments(appModuleId || ""),
+    queryFn: async () => {
+      if (!appModuleId) {
+        console.log("[Deployments] No appModuleId, skipping fetch");
+        return [];
+      }
+      console.log("[Deployments] Fetching deployments for module:", appModuleId);
+      const result = await applicationsApi.listDeployments(appModuleId);
+      console.log("[Deployments] Deployments result:", result);
+      return result;
+    },
     enabled: !!appModuleId,
-    retry: 1,
+    retry: 2,
   });
 
   const isLoading = isLoadingInterface || (!!appModuleId && isLoadingDeployments);
-  const hasError = interfaceError || deploymentsError;
 
   const createMutation = useMutation({
     mutationFn: (deploymentData: Partial<ApplicationDeploymentDescription>) =>
@@ -141,9 +174,71 @@ export default function ApplicationDeploymentsPage() {
     deleteMutation.mutate(deletingDeployment.appDeploymentId);
   };
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+  // Show error state
+  if (interfaceError) {
+    const errorMessage = interfaceError instanceof Error ? interfaceError.message : "Unknown error";
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/admin/applications">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Application Deployments</h1>
+          </div>
+        </div>
+        
+        <Card className="border-destructive">
+          <CardContent className="py-8">
+            <div className="flex flex-col items-center text-center">
+              <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+              <h3 className="text-lg font-semibold">Failed to load application</h3>
+              <p className="text-muted-foreground mt-1 max-w-md">
+                {errorMessage}
+              </p>
+              <div className="flex gap-2 mt-4">
+                <Button variant="outline" onClick={() => refetchInterface()}>
+                  Try Again
+                </Button>
+                <Button variant="outline" asChild>
+                  <Link href="/admin/applications">Back to Applications</Link>
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Show loading state
+  if (isLoadingInterface) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/admin/applications">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Application Deployments</h1>
+            <Skeleton className="h-4 w-48 mt-1" />
+          </div>
+        </div>
+        <div className="flex justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
+
+  // No module ID found
+  if (!appModuleId) {
+    return (
+      <div className="space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
             <Link href="/admin/applications">
@@ -157,25 +252,111 @@ export default function ApplicationDeploymentsPage() {
             )}
           </div>
         </div>
-        <Button onClick={() => setIsCreateOpen(true)} disabled={!appModuleId}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Deployment
-        </Button>
+        
+        <Card>
+          <CardContent className="py-8">
+            <div className="flex flex-col items-center text-center">
+              <AlertCircle className="h-12 w-12 text-amber-500 mb-4" />
+              <h3 className="text-lg font-semibold">No Application Module Found</h3>
+              <p className="text-muted-foreground mt-1 max-w-md">
+                This application interface doesn&apos;t have an associated module. 
+                Deployments require an application module.
+              </p>
+              <Button variant="outline" className="mt-4" asChild>
+                <Link href="/admin/applications">Back to Applications</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/admin/applications">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Application Deployments</h1>
+            {appInterface?.applicationName && (
+              <p className="text-muted-foreground">{appInterface.applicationName}</p>
+            )}
+          </div>
+        </div>
+
+        {/* Deployments Pills */}
+        {isLoadingDeployments ? (
+          <div className="flex gap-2 flex-wrap">
+            {[...Array(3)].map((_, i) => (
+              <Skeleton key={i} className="h-8 w-24 rounded-full" />
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 flex-wrap">
+            {deployments && deployments.length > 0 ? (
+              deployments.map((deployment) => {
+                const isSelected = selectedDeploymentId === deployment.appDeploymentId;
+                return (
+                  <button
+                    key={deployment.appDeploymentId}
+                    onClick={() => setSelectedDeploymentId(
+                      isSelected ? null : deployment.appDeploymentId
+                    )}
+                    className={cn(
+                      "inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors",
+                      isSelected ? "bg-blue-500 text-white shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    )}
+                  >
+                    <Server className="h-4 w-4" />
+                    <span>{deployment.appDeploymentDescription || deployment.computeHostId || "Deployment"}</span>
+                    {deployment.computeHostId && (
+                      <Badge
+                        variant={isSelected ? "secondary" : "outline"}
+                        className={cn("ml-1", isSelected ? "bg-white/20 text-white" : "")}
+                      >
+                        {deployment.computeHostId}
+                      </Badge>
+                    )}
+                  </button>
+                );
+              })
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCreateOpen(true)}
+              className="rounded-full text-sm font-medium"
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Add Deployment
+            </Button>
+          </div>
+        )}
       </div>
 
-      {hasError && (
+      {deploymentsError && (
         <Card className="border-destructive">
-          <CardContent className="py-6 text-center text-destructive">
-            Failed to load application data. Please try again or check your connection.
-            <br />
-            <span className="text-sm text-muted-foreground">
-              {(interfaceError as Error)?.message || (deploymentsError as Error)?.message}
-            </span>
+          <CardContent className="py-4">
+            <div className="flex items-center gap-3 text-destructive">
+              <AlertCircle className="h-5 w-5 flex-shrink-0" />
+              <div>
+                <p className="font-medium">Failed to load deployments</p>
+                <p className="text-sm text-muted-foreground">
+                  {deploymentsError instanceof Error ? deploymentsError.message : "Unknown error"}
+                </p>
+              </div>
+              <Button variant="outline" size="sm" className="ml-auto" onClick={() => refetchDeployments()}>
+                Retry
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
-
-      {isLoading && <Skeleton className="h-48 w-full" />}
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -185,14 +366,12 @@ export default function ApplicationDeploymentsPage() {
               Configure how this application runs on a compute resource
             </DialogDescription>
           </DialogHeader>
-          {appModuleId && (
-            <ApplicationDeploymentForm
-              appModuleId={appModuleId}
-              onSubmit={handleCreate}
-              onCancel={() => setIsCreateOpen(false)}
-              isLoading={createMutation.isPending}
-            />
-          )}
+          <ApplicationDeploymentForm
+            appModuleId={appModuleId}
+            onSubmit={handleCreate}
+            onCancel={() => setIsCreateOpen(false)}
+            isLoading={createMutation.isPending}
+          />
         </DialogContent>
       </Dialog>
 
@@ -204,7 +383,7 @@ export default function ApplicationDeploymentsPage() {
               Update deployment configuration
             </DialogDescription>
           </DialogHeader>
-          {editingDeployment && appModuleId && (
+          {editingDeployment && (
             <ApplicationDeploymentForm
               appModuleId={appModuleId}
               deployment={editingDeployment}
@@ -233,62 +412,75 @@ export default function ApplicationDeploymentsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {!isLoading && !hasError && (
-        <>
-          {deployments && deployments.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {deployments.map((deployment) => (
-                <Card key={deployment.appDeploymentId}>
-                  <CardHeader>
-                    <CardTitle className="text-base">{deployment.appDeploymentDescription}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div>
-                      <p className="text-sm text-muted-foreground">Compute Resource</p>
-                      <p className="font-medium">{deployment.computeHostId}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Executable Path</p>
-                      <p className="font-mono text-sm">{deployment.executablePath}</p>
-                    </div>
-                    {deployment.parallelism && (
-                      <div>
-                        <p className="text-sm text-muted-foreground">Parallelism</p>
-                        <Badge variant="secondary">{deployment.parallelism}</Badge>
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => setEditingDeployment(deployment)}
-                      >
-                        <Pencil className="mr-2 h-3 w-3" />
-                        Edit
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 text-destructive hover:text-destructive"
-                        onClick={() => setDeletingDeployment(deployment)}
-                      >
-                        <Trash2 className="mr-2 h-3 w-3" />
-                        Delete
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+      {/* Deployment Details */}
+      {selectedDeploymentId && deployments && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base">
+                {deployments.find(d => d.appDeploymentId === selectedDeploymentId)?.appDeploymentDescription || "Deployment"}
+              </CardTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const deployment = deployments.find(d => d.appDeploymentId === selectedDeploymentId);
+                    if (deployment) setEditingDeployment(deployment);
+                  }}
+                >
+                  <Pencil className="mr-2 h-3 w-3" />
+                  Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => {
+                    const deployment = deployments.find(d => d.appDeploymentId === selectedDeploymentId);
+                    if (deployment) setDeletingDeployment(deployment);
+                  }}
+                >
+                  <Trash2 className="mr-2 h-3 w-3" />
+                  Delete
+                </Button>
+              </div>
             </div>
-          ) : (
-            <Card>
-              <CardContent className="py-16 text-center text-muted-foreground">
-                No deployments configured. Create a deployment to run this application.
-              </CardContent>
-            </Card>
-          )}
-        </>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {(() => {
+              const deployment = deployments.find(d => d.appDeploymentId === selectedDeploymentId);
+              if (!deployment) return null;
+              return (
+                <>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Compute Resource</p>
+                    <p className="font-medium">{deployment.computeHostId}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Executable Path</p>
+                    <p className="font-mono text-sm">{deployment.executablePath}</p>
+                  </div>
+                  {deployment.parallelism && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Parallelism</p>
+                      <Badge variant="secondary">{deployment.parallelism}</Badge>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </CardContent>
+        </Card>
+      )}
+
+      {!isLoadingDeployments && (!deployments || deployments.length === 0) && (
+        <Card>
+          <CardContent className="py-16 text-center text-muted-foreground">
+            <p className="text-lg font-medium text-foreground mb-2">No deployments configured</p>
+            <p>Create a deployment to run this application on a compute resource.</p>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

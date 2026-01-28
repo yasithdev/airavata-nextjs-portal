@@ -2,8 +2,9 @@ import { apiClient } from "./client";
 import type { StorageResourceDescription } from "@/types";
 
 export const storageResourcesApi = {
-  list: async (): Promise<StorageResourceDescription[]> => {
-    return apiClient.get<StorageResourceDescription[]>("/api/v1/storage-resources");
+  list: async (): Promise<Record<string, string> | StorageResourceDescription[]> => {
+    // Backend returns Map<String, String> (id -> name), but we handle both formats
+    return apiClient.get<Record<string, string> | StorageResourceDescription[]>("/api/v1/storage-resources");
   },
 
   get: async (storageResourceId: string): Promise<StorageResourceDescription> => {

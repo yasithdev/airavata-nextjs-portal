@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { GatewaySelector } from "@/components/gateway/GatewaySelector";
+import { useGateway } from "@/contexts/GatewayContext";
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -21,6 +22,7 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { data: session } = useSession();
+  const { dashboardHref } = useGateway();
 
   const getInitials = (name?: string | null) => {
     if (!name) return "U";
@@ -39,7 +41,7 @@ export function Header({ onMenuClick }: HeaderProps) {
           <Menu className="h-5 w-5" />
         </Button>
 
-        <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
+        <Link href={dashboardHref} className="flex items-center gap-2 font-semibold">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             A
           </div>

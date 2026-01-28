@@ -21,58 +21,124 @@ import {
   Bell,
   BarChart3,
   FileCode,
-  Award,
   Globe,
+  SlidersHorizontal,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useGateway } from "@/contexts/GatewayContext";
+import { useMemo } from "react";
 
 interface SidebarProps {
   open?: boolean;
   onClose?: () => void;
 }
 
-const mainNavItems = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/projects", label: "Projects", icon: FolderKanban },
-  { href: "/experiments", label: "Experiments", icon: FlaskConical },
-  { href: "/applications", label: "Applications", icon: AppWindow },
-  { href: "/storage", label: "Storage", icon: HardDrive },
-  { href: "/catalog", label: "Catalog", icon: BookOpen },
-  { href: "/groups", label: "Groups", icon: UsersRound },
-];
+// Reserved paths that are not gateway names
+const RESERVED_PATHS = ["admin", "datasets", "repositories", "applications", "experiments", "dashboard", "catalog", "storage", "groups", "sharing", "account", "api", "auth", "login", "not-found", "no-permissions"];
 
-// Gateway Administration - scoped to the selected gateway
-const gatewayAdminItems = [
-  { href: "/admin/applications", label: "App Management", icon: AppWindow },
-  { href: "/admin/resource-profiles", label: "Resource Profiles", icon: Shield },
-  { href: "/admin/gateway-profile", label: "Gateway Profile", icon: Award },
-  { href: "/admin/credentials", label: "Credentials", icon: Key },
-  { href: "/admin/users", label: "Users", icon: Users },
-  { href: "/admin/data-products", label: "Data Products", icon: Database },
-  { href: "/admin/notices", label: "Notices", icon: Bell },
-  { href: "/admin/statistics", label: "Statistics", icon: BarChart3 },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
-];
+// Helper to get gateway name from pathname
+function getGatewayNameFromPath(pathname: string): string | null {
+  const match = pathname.match(/^\/([^/]+)/);
+  if (!match) return null;
+  const firstSegment = match[1];
+  // Check if it's a reserved path (not a gateway name)
+  if (RESERVED_PATHS.includes(firstSegment)) return null;
+  return firstSegment;
+}
 
-// System Administration - global resources, only visible to root users
-const systemAdminItems = [
-  { href: "/admin/gateways", label: "Gateways", icon: Building2 },
-  { href: "/admin/compute-resources", label: "Compute Resources", icon: Server },
-  { href: "/admin/storage-resources", label: "Storage Resources", icon: Database },
-  { href: "/admin/workflows", label: "Workflows", icon: FileCode },
-  { href: "/admin/parsers", label: "Data Parsers", icon: FileCode },
-];
+// Helper to check if path is gateway-scoped
+function isGatewayScopedPath(pathname: string): boolean {
+  const gatewayName = getGatewayNameFromPath(pathname);
+  return gatewayName !== null;
+}
+
+// Helper to check if path is root admin
+function isRootAdminPath(pathname: string): boolean {
+  return pathname.startsWith("/admin/") && !pathname.match(/^\/[^/]+\/admin\//);
+}
 
 export function Sidebar({ open, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const { isRootUser } = useGateway();
+  const {
+    isRootUser,
+    selectedGatewayId,
+    getGatewayName,
+    accessibleGateways,
+    hasNoGatewayAndIsRoot,
+  } = useGateway();
 
-  const NavLink = ({ href, label, icon: Icon }: { href: string; label: string; icon: any }) => {
-    const isActive = pathname === href || pathname.startsWith(href + "/");
-    
+  const pathGatewayName = useMemo(() => getGatewayNameFromPath(pathname), [pathname]);
+  const contextGatewayName = useMemo(() => {
+    if (selectedGatewayId && accessibleGateways.length > 0) {
+      return getGatewayName(selectedGatewayId);
+    }
+    return null;
+  }, [selectedGatewayId, accessibleGateways, getGatewayName]);
+
+  const isGatewayScoped = isGatewayScopedPath(pathname);
+  const isRootAdmin = isRootAdminPath(pathname);
+  const currentGatewayName = pathGatewayName || contextGatewayName || "default";
+
+  const gatewayPrefix = `/${currentGatewayName}`;
+  const gatewayAdminPrefix = `/${currentGatewayName}/admin`;
+
+  const mainNavItems = [
+    { href: `${gatewayPrefix}/dashboard`, label: "Dashboard", icon: LayoutDashboard },
+    { href: `${gatewayPrefix}/catalog`, label: "Catalog", icon: BookOpen },
+    { href: `${gatewayPrefix}/storage`, label: "Storage", icon: HardDrive },
+    { href: `${gatewayPrefix}/groups`, label: "Sharing", icon: UsersRound },
+  ];
+
+  const gatewayAdminItems = [
+    { href: `${gatewayAdminPrefix}/applications`, label: "Applications", icon: AppWindow },
+    { href: `${gatewayAdminPrefix}/credentials`, label: "Credentials", icon: Key },
+    { href: `${gatewayAdminPrefix}/resource-access`, label: "Access Control", icon: Lock },
+    { href: `${gatewayAdminPrefix}/preferences`, label: "Preferences", icon: SlidersHorizontal },
+    { href: `${gatewayAdminPrefix}/users`, label: "Users", icon: Users },
+    { href: `${gatewayAdminPrefix}/notices`, label: "Notices", icon: Bell },
+    { href: `${gatewayAdminPrefix}/statistics`, label: "Statistics", icon: BarChart3 },
+    { href: `${gatewayAdminPrefix}/settings`, label: "Settings", icon: Settings },
+  ];
+
+  const systemAdminItems = [
+    { href: "/admin/gateways", label: "Gateways", icon: Building2 },
+    { href: "/admin/compute-resources", label: "Compute Resources", icon: Server },
+    { href: "/admin/storage-resources", label: "Storage Resources", icon: Database },
+    { href: "/admin/workflows", label: "Workflows", icon: FileCode },
+    { href: "/admin/parsers", label: "Data Parsers", icon: FileCode },
+  ];
+
+  const disabled = hasNoGatewayAndIsRoot;
+
+  const NavLink = ({
+    href,
+    label,
+    icon: Icon,
+    disabled: isDisabled,
+  }: {
+    href: string;
+    label: string;
+    icon: any;
+    disabled?: boolean;
+  }) => {
+    const isActive = !isDisabled && (pathname === href || pathname.startsWith(href + "/"));
+
+    if (isDisabled) {
+      return (
+        <span
+          className={cn(
+            "flex cursor-not-allowed items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground/50"
+          )}
+        >
+          <Icon className="h-4 w-4" />
+          {label}
+        </span>
+      );
+    }
+
     return (
       <Link
         href={href}
@@ -100,32 +166,38 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       </div>
 
       <div className="flex-1 overflow-y-auto py-4">
+        {hasNoGatewayAndIsRoot && (
+          <div className="mb-4 px-4">
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200">
+              No gateway available. System administration only.
+            </p>
+          </div>
+        )}
+
         <nav className="grid gap-1 px-4">
           {mainNavItems.map((item) => (
-            <NavLink key={item.href} {...item} />
+            <NavLink key={item.href} {...item} disabled={disabled} />
           ))}
         </nav>
 
         <Separator className="my-4" />
 
-        {/* Gateway Administration - scoped to selected gateway */}
         <div className="px-4">
           <h4 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Gateway Administration
           </h4>
           <nav className="grid gap-1">
             {gatewayAdminItems.map((item) => (
-              <NavLink key={item.href} {...item} />
+              <NavLink key={item.href} {...item} disabled={disabled} />
             ))}
           </nav>
         </div>
 
-        {/* System Administration - only visible to root users */}
         {isRootUser && (
           <>
             <Separator className="my-4" />
             <div className="px-4">
-              <h4 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <h4 className="mb-2 flex items-center gap-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 <Globe className="h-3 w-3" />
                 System Administration
               </h4>

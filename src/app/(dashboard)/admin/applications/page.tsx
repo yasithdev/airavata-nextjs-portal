@@ -3,9 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, AppWindow, MoreVertical, Pencil, Trash2, Server } from "lucide-react";
+import { ArrowLeft, Plus, AppWindow } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -19,17 +19,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { useApplicationInterfaces } from "@/hooks";
-import { ApplicationInterfaceForm } from "@/components/applications/ApplicationInterfaceForm";
 import { CreateApplicationWizard } from "@/components/applications/CreateApplicationWizard";
-import { apiClient } from "@/lib/api/client";
+import { apiClient } from "@/lib/api";
 import { toast } from "@/hooks/useToast";
 import { useGateway } from "@/contexts/GatewayContext";
 import type { ApplicationInterfaceDescription, ApplicationModule } from "@/types";
@@ -42,10 +34,6 @@ export default function AdminApplicationsPage() {
   const { data: applications, isLoading, refetch } = useApplicationInterfaces();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  
-  // Edit state
-  const [editingApp, setEditingApp] = useState<ApplicationInterfaceDescription | null>(null);
-  const [isEditOpen, setIsEditOpen] = useState(false);
   
   // Delete state
   const [deletingApp, setDeletingApp] = useState<ApplicationInterfaceDescription | null>(null);
@@ -100,43 +88,6 @@ export default function AdminApplicationsPage() {
     }
   };
 
-  const handleOpenEdit = (app: ApplicationInterfaceDescription) => {
-    setEditingApp(app);
-    setIsEditOpen(true);
-  };
-
-  const handleUpdateInterface = async (interfaceData: any) => {
-    if (!editingApp) return;
-    
-    setIsSaving(true);
-    try {
-      await apiClient.put(`/api/v1/application-interfaces/${editingApp.applicationInterfaceId}`, {
-        ...interfaceData,
-        applicationInterfaceId: editingApp.applicationInterfaceId,
-      });
-      toast({
-        title: "Application updated",
-        description: "Application interface updated successfully.",
-      });
-      setIsEditOpen(false);
-      setEditingApp(null);
-      refetch();
-    } catch (error) {
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : typeof error === 'string' 
-        ? error 
-        : "Failed to update interface";
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
-      });
-      console.error("Update application interface error:", error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
 
   const handleDelete = async () => {
     if (!deletingApp) return;
@@ -208,68 +159,10 @@ export default function AdminApplicationsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {applications.map((app) => (
-            <Card 
+            <ApplicationCard
               key={app.applicationInterfaceId}
-              className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => handleOpenEdit(app)}
-            >
-              <CardHeader className="flex flex-row items-start justify-between space-y-0">
-                <div className="flex items-start gap-3">
-                  <div className="p-2 rounded-lg bg-purple-100">
-                    <AppWindow className="h-5 w-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg">{app.applicationName}</CardTitle>
-                    <CardDescription className="text-xs mt-1 line-clamp-2">
-                      {app.applicationDescription || "No description"}
-                    </CardDescription>
-                  </div>
-                </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={(e) => {
-                      e.stopPropagation();
-                      handleOpenEdit(app);
-                    }}>
-                      <Pencil className="h-4 w-4 mr-2" />
-                      Edit Interface
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild onClick={(e) => e.stopPropagation()}>
-                      <Link href={`/admin/applications/${app.applicationInterfaceId}/deployments`}>
-                        <Server className="h-4 w-4 mr-2" />
-                        Deployments
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      className="text-destructive focus:text-destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeletingApp(app);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </CardHeader>
-              <CardContent>
-                <div className="flex gap-2">
-                  <Badge variant="outline">
-                    {app.applicationInputs?.length || 0} inputs
-                  </Badge>
-                  <Badge variant="outline">
-                    {app.applicationOutputs?.length || 0} outputs
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
+              app={app}
+            />
           ))}
         </div>
       )}
@@ -291,37 +184,6 @@ export default function AdminApplicationsPage() {
             onCancel={() => setIsCreateOpen(false)}
             isLoading={isSaving}
           />
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Application Dialog */}
-      <Dialog open={isEditOpen} onOpenChange={(open) => {
-        setIsEditOpen(open);
-        if (!open) {
-          setEditingApp(null);
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Application Interface</DialogTitle>
-            <DialogDescription>
-              Update the application configuration, inputs, and outputs
-            </DialogDescription>
-          </DialogHeader>
-          
-          {editingApp && (
-            <ApplicationInterfaceForm
-              appInterface={editingApp}
-              appModuleId={editingApp.applicationModules?.[0] || ""}
-              onSubmit={handleUpdateInterface}
-              onCancel={() => {
-                setIsEditOpen(false);
-                setEditingApp(null);
-              }}
-              isLoading={isSaving}
-              gatewayId={gatewayId}
-            />
-          )}
         </DialogContent>
       </Dialog>
 
@@ -348,5 +210,41 @@ export default function AdminApplicationsPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+// Simplified application card matching catalog/credential card style
+function ApplicationCard({
+  app,
+}: {
+  app: ApplicationInterfaceDescription;
+}) {
+  return (
+    <Link href={`/admin/applications/${app.applicationInterfaceId}/configure`}>
+      <Card className="h-full transition-colors hover:bg-accent cursor-pointer">
+        <CardHeader>
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-2">
+              <AppWindow className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-semibold line-clamp-1">{app.applicationName}</h3>
+            </div>
+            <Badge variant="secondary">Application</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground line-clamp-2">
+            {app.applicationDescription || "No description"}
+          </p>
+          <div className="flex gap-2">
+            <Badge variant="outline" className="text-xs">
+              {app.applicationInputs?.length || 0} inputs
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              {app.applicationOutputs?.length || 0} outputs
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }

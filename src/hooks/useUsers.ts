@@ -6,13 +6,19 @@ import { useGateway } from "@/contexts/GatewayContext";
 import { usersApi, type User } from "@/lib/api/users";
 
 export function useUsers() {
-  const { effectiveGatewayId, isAllGatewaysMode } = useGateway();
+  const { accessibleGateways, effectiveGatewayId } = useGateway();
   const gatewayId = effectiveGatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
 
   return useQuery({
-    queryKey: ["users", gatewayId, isAllGatewaysMode],
-    queryFn: () => usersApi.list(isAllGatewaysMode ? undefined : gatewayId),
-    enabled: isAllGatewaysMode || !!gatewayId,
+    queryKey: ["users", gatewayId, accessibleGateways.map((g) => g.gatewayId).join(",")],
+    queryFn: async () => {
+      const users = await usersApi.list(gatewayId, 100, 0);
+      return users.map((user) => {
+        if (!user.gatewayId) user.gatewayId = gatewayId;
+        return user;
+      });
+    },
+    enabled: !!effectiveGatewayId || accessibleGateways.length > 0,
   });
 }
 
