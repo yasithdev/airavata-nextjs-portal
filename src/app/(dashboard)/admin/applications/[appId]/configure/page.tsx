@@ -40,6 +40,7 @@ import { ApplicationDeploymentForm } from "@/components/applications/Application
 import { ApplicationInterfaceForm } from "@/components/applications/ApplicationInterfaceForm";
 import { toast } from "@/hooks/useToast";
 import { useGateway } from "@/contexts/GatewayContext";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 import { cn } from "@/lib/utils";
 import type { ApplicationDeploymentDescription, ApplicationInterfaceDescription } from "@/types";
 
@@ -47,7 +48,8 @@ export default function ApplicationConfigurePage() {
   const params = useParams();
   const router = useRouter();
   const { effectiveGatewayId } = useGateway();
-  const gatewayId = effectiveGatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = effectiveGatewayId || defaultGatewayId;
   const appInterfaceId = params.appId as string;
 
   const queryClient = useQueryClient();
@@ -150,7 +152,6 @@ export default function ApplicationConfigurePage() {
         description: "Application deployment deleted successfully.",
       });
       setDeletingDeployment(null);
-      setSelectedDeploymentId(null);
     },
     onError: (error: Error) => {
       toast({
@@ -222,7 +223,7 @@ export default function ApplicationConfigurePage() {
         title: "Application deleted",
         description: "Application interface deleted successfully.",
       });
-      router.push("/admin/applications");
+      router.push(`/catalog/APPLICATION/${appInterfaceId}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to delete application";
       toast({
@@ -256,7 +257,7 @@ export default function ApplicationConfigurePage() {
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/admin/applications">
+            <Link href={`/catalog/APPLICATION/${appInterfaceId}`}>
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
@@ -273,7 +274,7 @@ export default function ApplicationConfigurePage() {
                 {interfaceError instanceof Error ? interfaceError.message : "Application not found"}
               </p>
               <Button variant="outline" className="mt-4" asChild>
-                <Link href="/admin/applications">Back to Applications</Link>
+                <Link href={`/catalog/APPLICATION/${appInterfaceId}`}>Back to Application</Link>
               </Button>
             </div>
           </CardContent>
@@ -287,7 +288,7 @@ export default function ApplicationConfigurePage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/admin/applications">
+            <Link href={`/catalog/APPLICATION/${appInterfaceId}`}>
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
@@ -484,6 +485,7 @@ export default function ApplicationConfigurePage() {
             </DialogDescription>
           </DialogHeader>
           <ApplicationInterfaceForm
+            key={isEditInterfaceOpen ? `edit-${appInterfaceId}` : "create"}
             appInterface={appInterface}
             appModuleId={appModuleId || ""}
             onSubmit={handleUpdateInterface}

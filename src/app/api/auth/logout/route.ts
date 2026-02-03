@@ -1,35 +1,91 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { buildKeycloakLogoutUrl } from "@/lib/auth";
 
 /**
- * Server-side logout endpoint that performs proper federated logout.
- * 
- * This endpoint:
- * 1. Gets the id_token from the server-side session (not exposed to client)
- * 2. Builds the Keycloak logout URL with id_token_hint
- * 3. Redirects to Keycloak which will:
- *    - Terminate the Keycloak session
- *    - If user logged in via CILogon, redirect to CILogon logout
- *    - Finally redirect back to our login page
+ * Server-side logout endpoint that handles complete federated OIDC logout.
+ *
+ * Clears the NextAuth session and redirects to Keycloak's end_session endpoint
+ * with only client_id and post_logout_redirect_uri (no id_token_hint) to avoid
+ * sending stale tokens after realm wipe (e.g. cold-start).
  */
 export async function GET(request: NextRequest) {
-  const session = await auth();
-  
-  const keycloakIssuer = process.env.KEYCLOAK_ISSUER;
   const postLogoutRedirectUri = `${request.nextUrl.origin}/login`;
+  const keycloakLogoutUrl = buildKeycloakLogoutUrl(postLogoutRedirectUri);
   
-  // Build Keycloak logout URL
-  const logoutUrl = new URL(`${keycloakIssuer}/protocol/openid-connect/logout`);
+  // Create the redirect response
+  const response = NextResponse.redirect(keycloakLogoutUrl, { status: 302 });
   
-  // Add id_token_hint if available (enables automatic redirect without confirmation)
-  if (session?.idToken) {
-    logoutUrl.searchParams.set("id_token_hint", session.idToken);
+  // Properly clear NextAuth v5 session cookies
+  // NextAuth v5 uses "authjs." prefix, but we clear both for compatibility
+  // The cookie name depends on whether HTTPS is used (__Secure- prefix)
+  const isSecure = request.url.startsWith('https://');
+  
+  const cookieOptions = {
+    expires: new Date(0),
+    maxAge: 0,
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: isSecure,
+  };
+  
+  // NextAuth v5 cookie names
+  if (isSecure) {
+    response.cookies.set('__Secure-authjs.session-token', '', { ...cookieOptions, secure: true });
+    response.cookies.set('__Host-authjs.csrf-token', '', { ...cookieOptions, secure: true, path: '/' });
+  } else {
+    response.cookies.set('authjs.session-token', '', cookieOptions);
+    response.cookies.set('authjs.csrf-token', '', cookieOptions);
   }
   
-  // Add post_logout_redirect_uri (where to go after logout)
-  logoutUrl.searchParams.set("post_logout_redirect_uri", postLogoutRedirectUri);
+  // Also clear NextAuth v4 cookie names for backwards compatibility
+  if (isSecure) {
+    response.cookies.set('__Secure-next-auth.session-token', '', { ...cookieOptions, secure: true });
+    response.cookies.set('__Secure-next-auth.csrf-token', '', { ...cookieOptions, secure: true });
+    response.cookies.set('__Host-next-auth.csrf-token', '', { ...cookieOptions, secure: true, path: '/' });
+  } else {
+    response.cookies.set('next-auth.session-token', '', cookieOptions);
+    response.cookies.set('next-auth.csrf-token', '', cookieOptions);
+  }
   
-  // Redirect to Keycloak logout
-  // This will clear Keycloak session and trigger upstream IdP logout if configured
-  return NextResponse.redirect(logoutUrl.toString());
+  // Clear callback URL cookie if present
+  response.cookies.set('authjs.callback-url', '', cookieOptions);
+  response.cookies.set('next-auth.callback-url', '', cookieOptions);
+
+  return response;
+}
+
+/**
+ * POST handler for programmatic logout (e.g., from fetch calls)
+ * Returns JSON with the logout URL instead of redirecting
+ */
+export async function POST(request: NextRequest) {
+  const postLogoutRedirectUri = `${request.nextUrl.origin}/login`;
+  const keycloakLogoutUrl = buildKeycloakLogoutUrl(postLogoutRedirectUri);
+  
+  // Create response with logout URL
+  const response = NextResponse.json({ 
+    logoutUrl: keycloakLogoutUrl,
+    success: true 
+  });
+  
+  // Clear cookies (same as GET handler)
+  const isSecure = request.url.startsWith('https://');
+  
+  const cookieOptions = {
+    expires: new Date(0),
+    maxAge: 0,
+    path: '/',
+    httpOnly: true,
+    sameSite: 'lax' as const,
+    secure: isSecure,
+  };
+  
+  if (isSecure) {
+    response.cookies.set('__Secure-authjs.session-token', '', { ...cookieOptions, secure: true });
+  } else {
+    response.cookies.set('authjs.session-token', '', cookieOptions);
+  }
+  
+  return response;
 }

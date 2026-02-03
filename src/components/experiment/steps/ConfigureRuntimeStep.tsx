@@ -1,15 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useQuery } from "@tanstack/react-query";
-import { apiClient, applicationsApi, preferencesApi } from "@/lib/api";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient, applicationsApi, preferencesApi, clusterInfoApi } from "@/lib/api";
+import { useCredentials } from "@/hooks/useCredentials";
 import { useGateway } from "@/contexts/GatewayContext";
+import { ClusterInfoPanel } from "@/components/cluster/ClusterInfoPanel";
 import type { ComputeResourceDescription } from "@/types";
+import type { ClusterInfo, PartitionInfo } from "@/lib/api/clusterInfo";
 
 interface Props {
   data: any;
@@ -20,8 +24,14 @@ interface Props {
 
 export function ConfigureRuntimeStep({ data, onUpdate, onNext, onBack }: Props) {
   const { effectiveGatewayId } = useGateway();
-  const gatewayId = effectiveGatewayId || '';
-  const userId = '';
+  const gatewayId = effectiveGatewayId || "";
+  const userId = "";
+  const queryClient = useQueryClient();
+  const { data: credentials } = useCredentials();
+  const sshCredentials = credentials?.filter((c) => c.type === "SSH") || [];
+  const [clusterInfoCredentialToken, setClusterInfoCredentialToken] = useState<string>("");
+
+  const credentialTokenForClusterInfo = clusterInfoCredentialToken || (sshCredentials.length === 1 ? sshCredentials[0].token : "");
 
   // Fetch compute resources
   const { data: computeResourcesMap } = useQuery({
@@ -57,6 +67,13 @@ export function ConfigureRuntimeStep({ data, onUpdate, onNext, onBack }: Props) 
       []
     ),
     enabled: !!data.computeResourceId && !!gatewayId,
+  });
+
+  // Fetch cached cluster info when credential and compute resource are selected
+  const { data: clusterInfo } = useQuery({
+    queryKey: ["cluster-info", credentialTokenForClusterInfo, data.computeResourceId],
+    queryFn: () => clusterInfoApi.get(credentialTokenForClusterInfo, data.computeResourceId),
+    enabled: !!credentialTokenForClusterInfo && !!data.computeResourceId && !!gatewayId,
   });
 
   // Convert compute resources map to array for rendering
@@ -200,22 +217,65 @@ export function ConfigureRuntimeStep({ data, onUpdate, onNext, onBack }: Props) 
       {data.computeResourceId && (
         <div className="space-y-4 border-t pt-4">
           <h3 className="text-sm font-semibold mb-2">Queue Settings</h3>
-          
+
+          {/* Cluster info: optional credential and fetch */}
+          {sshCredentials.length > 0 && computeResource?.hostName && (
+            <div className="space-y-2">
+              {sshCredentials.length > 1 && (
+                <div className="grid gap-4 md:grid-cols-[140px_1fr] md:items-center">
+                  <Label className="md:text-right">Credential for cluster info</Label>
+                  <Select
+                    value={credentialTokenForClusterInfo}
+                    onValueChange={setClusterInfoCredentialToken}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select credential to fetch partitions" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sshCredentials.map((c) => (
+                        <SelectItem key={c.token} value={c.token}>
+                          {c.name || c.description || c.token.substring(0, 12)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <ClusterInfoPanel
+                credentialToken={credentialTokenForClusterInfo}
+                computeResourceId={data.computeResourceId}
+                hostname={computeResource.hostName}
+                port={22}
+                compact
+                onClusterInfoFetched={() => {
+                  queryClient.invalidateQueries({ queryKey: ["cluster-info", credentialTokenForClusterInfo, data.computeResourceId] });
+                }}
+              />
+            </div>
+          )}
+
           <div className="grid gap-4 md:grid-cols-[140px_1fr] md:items-center">
-            <Label className="md:text-right">Queue Name <span className="text-destructive">*</span></Label>
+            <Label className="md:text-right">Queue / Partition <span className="text-destructive">*</span></Label>
             <Select
               value={data.scheduling?.queueName || ""}
               onValueChange={(value) => updateScheduling("queueName", value)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a queue" />
+                <SelectValue placeholder="Select a queue or partition" />
               </SelectTrigger>
               <SelectContent>
-                {computeResource?.batchQueues?.map((queue) => (
-                  <SelectItem key={queue.queueName} value={queue.queueName}>
-                    {queue.queueName} ({queue.maxNodes || "N/A"} max nodes)
-                  </SelectItem>
-                ))}
+                {clusterInfo?.partitions && clusterInfo.partitions.length > 0
+                  ? clusterInfo.partitions.map((p: PartitionInfo) => (
+                      <SelectItem key={p.partitionName} value={p.partitionName}>
+                        {p.partitionName} ({p.nodeCount} nodes, {p.maxCpusPerNode} CPUs/node
+                        {p.maxGpusPerNode > 0 ? `, ${p.maxGpusPerNode} GPUs/node` : ""})
+                      </SelectItem>
+                    ))
+                  : computeResource?.batchQueues?.map((queue) => (
+                      <SelectItem key={queue.queueName} value={queue.queueName}>
+                        {queue.queueName} ({queue.maxNodes || "N/A"} max nodes)
+                      </SelectItem>
+                    ))}
               </SelectContent>
             </Select>
           </div>

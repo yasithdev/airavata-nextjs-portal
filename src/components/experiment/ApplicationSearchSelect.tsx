@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Search, ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchBar } from "@/components/ui/search-bar";
 import { cn } from "@/lib/utils";
 import type { ApplicationInterfaceDescription } from "@/types";
 
@@ -78,17 +78,14 @@ export function ApplicationSearchSelect({
       {isOpen && (
         <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-md">
           <div className="p-2 border-b">
-            <div className="relative">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                ref={inputRef}
-                placeholder="Search applications..."
-                className="pl-8 h-8"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
+            <SearchBar
+              ref={inputRef}
+              placeholder="Search applications..."
+              value={searchTerm}
+              onChange={setSearchTerm}
+              onClick={(e) => e.stopPropagation()}
+              wrapperClassName="border-0 rounded-md"
+            />
           </div>
           <div className="max-h-[300px] overflow-y-auto">
             {isLoading ? (

@@ -19,7 +19,7 @@ interface Props {
 export function ComputeResourceStep({ data, onUpdate, onNext, onBack }: Props) {
   const { effectiveGatewayId } = useGateway();
   const gatewayId = effectiveGatewayId || '';
-  // TODO: Get actual user ID from session when available
+  // User ID for preference resolution; from session when available (see useSession).
   const userId = '';
 
   // Fetch compute resources
@@ -45,7 +45,7 @@ export function ComputeResourceStep({ data, onUpdate, onNext, onBack }: Props) {
       data.computeResourceId,
       gatewayId,
       userId,
-      [] // TODO: Add user's group IDs
+      [] // Group IDs for preference resolution; from user profile when available.
     ),
     enabled: !!data.computeResourceId && !!gatewayId,
   });

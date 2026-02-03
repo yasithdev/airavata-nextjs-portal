@@ -4,9 +4,9 @@ import { useState, Suspense, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Plus, Search, FlaskConical, FolderKanban } from "lucide-react";
+import { Plus, FlaskConical, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchBar } from "@/components/ui/search-bar";
 import {
   Dialog,
   DialogContent,
@@ -115,7 +115,7 @@ function ProjectsContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
@@ -131,25 +131,15 @@ function ProjectsContent() {
         </div>
       </div>
 
-      {/* Spotlight-style Search Bar with Inline View Toggle */}
-      <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg border">
-        {/* Search Input */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search projects and experiments..."
-            className="pl-10 border-0 bg-transparent shadow-none focus-visible:ring-0"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        
-        {/* Divider */}
+      <SearchBar
+        placeholder="Search projects and experiments..."
+        value={search}
+        onChange={setSearch}
+      >
         <div className="h-6 w-px bg-border" />
-        
-        {/* View Mode Toggle */}
         <div className="flex items-center gap-0.5 px-1">
           <button
+            type="button"
             onClick={() => setViewMode("projects")}
             className={cn(
               "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
@@ -162,6 +152,7 @@ function ProjectsContent() {
             <span className="hidden sm:inline">Projects View</span>
           </button>
           <button
+            type="button"
             onClick={() => setViewMode("experiments")}
             className={cn(
               "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
@@ -174,7 +165,7 @@ function ProjectsContent() {
             <span className="hidden sm:inline">All Experiments</span>
           </button>
         </div>
-      </div>
+      </SearchBar>
 
       {viewMode === "projects" ? (
         // Projects View with nested experiments
@@ -269,7 +260,7 @@ function ProjectsContent() {
           </div>
         ) : (
           <ExperimentTable
-            experiments={filteredExperiments}
+            experiments={filteredExperiments ?? []}
             onDelete={setExperimentToDelete}
             showProject={true}
           />

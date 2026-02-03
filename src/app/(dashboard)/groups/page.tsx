@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Plus, Key, Server, Database, Filter, X } from "lucide-react";
+import { Plus, Key, Server, Database } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -26,6 +25,7 @@ import { toast } from "@/hooks/useToast";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useGateway } from "@/contexts/GatewayContext";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 import { PreferenceLevel, PreferenceResourceType } from "@/types";
 import { cn } from "@/lib/utils";
 import { computeResourcesApi, storageResourcesApi } from "@/lib/api";
@@ -35,13 +35,13 @@ export default function SharingPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const { effectiveGatewayId } = useGateway();
-  const gatewayId = effectiveGatewayId || session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = effectiveGatewayId || session?.user?.gatewayId || defaultGatewayId;
   const userId = session?.user?.email || "admin";
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [formData, setFormData] = useState({ name: "", description: "" });
-  const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>("all");
-  
+
   const { data: groups, isLoading: isLoadingGroups } = useGroups();
   const createGroup = useCreateGroup();
   const { useAccessGrantsByOwner } = useResourceAccess();
@@ -160,15 +160,6 @@ export default function SharingPage() {
     return resources;
   }, [userAccessGrants, groupGrantsQueries.data, userGroups, computeResourcesMap, storageResourcesMap]);
 
-  // Filter resources by selected group
-  const filteredResources = useMemo(() => {
-    if (selectedGroupFilter === "all") return allSharedResources;
-    if (selectedGroupFilter === "direct") {
-      return allSharedResources.filter(r => r.sharingMethod === "direct");
-    }
-    return allSharedResources.filter(r => r.groupId === selectedGroupFilter);
-  }, [allSharedResources, selectedGroupFilter]);
-
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) {
@@ -202,7 +193,7 @@ export default function SharingPage() {
   const isLoading = isLoadingGroups || isLoadingUserGrants || groupGrantsQueries.isLoading;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Sharing</h1>
@@ -216,60 +207,20 @@ export default function SharingPage() {
         </Button>
       </div>
 
-      {/* Filter by Group */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex items-center gap-4">
-            <Label htmlFor="group-filter" className="whitespace-nowrap">Filter by:</Label>
-            <Select value={selectedGroupFilter} onValueChange={setSelectedGroupFilter}>
-              <SelectTrigger id="group-filter" className="w-[250px]">
-                <SelectValue placeholder="All shared resources" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All shared resources</SelectItem>
-                <SelectItem value="direct">Direct sharing</SelectItem>
-                {userGroups.map((group) => (
-                  <SelectItem key={group.id} value={group.id}>
-                    {group.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedGroupFilter !== "all" && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedGroupFilter("all")}
-              >
-                <X className="h-4 w-4 mr-1" />
-                Clear filter
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Shared Resources Table */}
       <Card>
         <CardHeader>
           <CardTitle>Shared Resources</CardTitle>
           <CardDescription>
-            {selectedGroupFilter === "all" 
-              ? `All resources you've shared (${filteredResources.length})`
-              : selectedGroupFilter === "direct"
-              ? `Resources shared directly (${filteredResources.length})`
-              : `Resources shared via ${userGroups.find(g => g.id === selectedGroupFilter)?.name} (${filteredResources.length})`
-            }
+            All resources you&apos;ve shared ({allSharedResources.length})
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <Skeleton className="h-64 w-full" />
-          ) : filteredResources.length === 0 ? (
+          ) : allSharedResources.length === 0 ? (
             <div className="py-16 text-center text-muted-foreground">
-              {selectedGroupFilter === "all"
-                ? "You haven't shared any resources yet."
-                : "No resources shared with this filter."}
+              You haven&apos;t shared any resources yet.
             </div>
           ) : (
             <Table>
@@ -277,15 +228,15 @@ export default function SharingPage() {
                 <TableRow>
                   <TableHead>Resource Type</TableHead>
                   <TableHead>Resource Name</TableHead>
-                  <TableHead>Sharing Method</TableHead>
+                  <TableHead>Source</TableHead>
                   <TableHead>Group</TableHead>
                   <TableHead>Credential</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredResources.map((resource, idx) => (
-                  <TableRow key={`${resource.resourceId}-${resource.sharingMethod}-${resource.groupId || 'direct'}-${idx}`}>
+                {allSharedResources.map((resource, idx) => (
+                  <TableRow key={`${resource.resourceId}-${resource.sharingMethod}-${resource.groupId || "direct"}-${idx}`}>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         {resource.resourceType === PreferenceResourceType.COMPUTE ? (
@@ -306,8 +257,8 @@ export default function SharingPage() {
                     </TableCell>
                     <TableCell className="font-medium">{resource.resourceName}</TableCell>
                     <TableCell>
-                      <Badge variant={resource.sharingMethod === "group" ? "default" : "secondary"}>
-                        {resource.sharingMethod === "group" ? "Group" : "Direct"}
+                      <Badge variant="outline" className="text-xs">
+                        {resource.sharingMethod === "direct" ? "USER" : "DELEGATED"}
                       </Badge>
                     </TableCell>
                     <TableCell>

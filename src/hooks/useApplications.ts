@@ -4,10 +4,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { applicationsApi } from "@/lib/api/applications";
 import { useGateway } from "@/contexts/GatewayContext";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 
 export function useApplicationInterfaces() {
   const { data: session } = useSession();
-  const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = session?.user?.gatewayId || defaultGatewayId;
 
   return useQuery({
     queryKey: ["application-interfaces", gatewayId],
@@ -42,7 +44,8 @@ export function useApplicationOutputs(interfaceId: string) {
 
 export function useApplicationModules() {
   const { selectedGatewayId } = useGateway();
-  const gatewayId = selectedGatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = selectedGatewayId || defaultGatewayId;
 
   return useQuery({
     queryKey: ["application-modules", gatewayId],

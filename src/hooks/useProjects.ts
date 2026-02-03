@@ -2,6 +2,7 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGateway } from "@/contexts/GatewayContext";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 import { projectsApi, type ListProjectsParams } from "@/lib/api/projects";
 import type { Project } from "@/types";
 
@@ -27,6 +28,7 @@ export function useProject(projectId: string) {
 export function useCreateProject() {
   const queryClient = useQueryClient();
   const { selectedGatewayId, accessibleGateways, isLoading: gatewaysLoading } = useGateway();
+  const { defaultGatewayId } = usePortalConfig();
 
   return useMutation({
     mutationFn: (project: Partial<Project>) => {
@@ -40,7 +42,7 @@ export function useCreateProject() {
         gatewayId = accessibleGateways[0].gatewayId;
       }
       if (!gatewayId) {
-        gatewayId = process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+        gatewayId = defaultGatewayId;
       }
       
       if (!gatewayId) {

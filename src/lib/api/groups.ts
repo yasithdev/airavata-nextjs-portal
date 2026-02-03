@@ -9,6 +9,8 @@ export interface Group {
   members?: GroupMember[];
   admins?: string[];
   createdTime?: number;
+  /** True if this is the user's auto-created personal group (Zanzibar model) */
+  isPersonalGroup?: boolean;
 }
 
 export interface GroupMember {
@@ -44,5 +46,19 @@ export const groupsApi = {
 
   removeMember: async (groupId: string, userId: string): Promise<void> => {
     return apiClient.delete(`/api/v1/groups/${groupId}/members/${userId}`);
+  },
+
+  /**
+   * Get the current user's personal group (Zanzibar model: every user has one).
+   * Personal group ID format: userId@gatewayId_personal
+   */
+  getPersonalGroup: async (gatewayId: string): Promise<Group | null> => {
+    try {
+      const list = await groupsApi.list(gatewayId);
+      const personal = list.find((g) => g.isPersonalGroup === true);
+      return personal ?? null;
+    } catch {
+      return null;
+    }
   },
 };

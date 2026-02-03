@@ -60,37 +60,38 @@ export function QuickActions({ gatewayName, onCreateProject }: QuickActionsProps
   ];
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-lg font-semibold">Quick Actions</h3>
-        <p className="text-sm text-muted-foreground">Common tasks you can perform</p>
-      </div>
-      <div className="grid gap-3 grid-cols-1">
-        {actions.map((action) => (
-          <Link 
-            key={action.title} 
-            href={action.href}
-            onClick={action.onClick}
-          >
-            <Card
-              className={cn(
-                "transition-colors hover:bg-muted/50 cursor-pointer",
-                "border border-border bg-card"
-              )}
+    <Card>
+      <CardHeader>
+        <CardTitle>Quick Actions</CardTitle>
+        <CardDescription>Common tasks you can perform</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-2 grid-cols-1">
+          {actions.map((action) => (
+            <Link 
+              key={action.title} 
+              href={action.href}
+              onClick={action.onClick}
             >
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
-                  <action.icon className="h-5 w-5 text-muted-foreground" />
-                </div>
-                <div className="min-w-0 flex-1 text-left">
-                  <p className="font-medium">{action.title}</p>
-                  <p className="text-sm text-muted-foreground">{action.description}</p>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
-    </div>
+              <Card
+                className={cn(
+                  "transition-colors hover:bg-muted/50 cursor-pointer",
+                  "border border-border bg-card"
+                )}
+              >
+                <CardContent className="flex items-center gap-3 py-2 px-3">
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <action.icon className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0 flex-1 text-left">
+                    <p className="font-medium text-sm">{action.title}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -3,7 +3,10 @@ import { apiClient } from "./client";
 export interface CredentialSummary {
   token: string;
   gatewayId: string;
-  username: string;
+  /** User-given name to identify this credential. */
+  name?: string;
+  /** Optional; from resource context (e.g. access grant). Login username is not stored on the credential. */
+  username?: string | null;
   publicKey?: string;
   description?: string;
   persistedTime?: number;
@@ -12,27 +15,35 @@ export interface CredentialSummary {
 
 export interface SSHCredential {
   gatewayId: string;
-  username: string;
+  /** User-given name to identify this credential. */
+  name: string;
   publicKey: string;
   privateKey: string;
   passphrase?: string;
   description?: string;
+  /** Owner (e.g. email); backend sets ownerId = userId@gatewayId for access-control. */
+  userId?: string;
 }
 
 export interface PasswordCredential {
   gatewayId: string;
-  loginUsername: string;
+  /** User-given name to identify this credential. */
+  name: string;
   password: string;
   description?: string;
+  /** Owner (e.g. email); backend sets ownerId = userId@gatewayId for access-control. */
+  userId?: string;
 }
 
 export const credentialsApi = {
   list: async (gatewayId?: string): Promise<CredentialSummary[]> => {
     // If no gatewayId provided, fetch all credentials (admin mode)
-    const url = gatewayId 
-      ? `/api/v1/credential-summaries?gatewayId=${gatewayId}`
-      : `/api/v1/credential-summaries`;
-    return apiClient.get<CredentialSummary[]>(url);
+    if (gatewayId) {
+      return apiClient.get<CredentialSummary[]>(`/api/v1/credential-summaries`, {
+        params: { gatewayId },
+      });
+    }
+    return apiClient.get<CredentialSummary[]>(`/api/v1/credential-summaries`);
   },
 
   getSSH: async (token: string, gatewayId: string): Promise<SSHCredential & { token: string }> => {
@@ -57,5 +68,16 @@ export const credentialsApi = {
 
   generateKeyPair: async (keySize: number = 2048): Promise<{ privateKey: string; publicKey: string; keySize: string }> => {
     return apiClient.post<{ privateKey: string; publicKey: string; keySize: string }>(`/api/v1/ssh-keygen?keySize=${keySize}`);
+  },
+
+  getSummary: async (token: string, gatewayId: string): Promise<CredentialSummary> => {
+    return apiClient.get<CredentialSummary>(`/api/v1/credential-summaries/${token}?gatewayId=${gatewayId}`);
+  },
+
+  /** Owned-only credentials (userId@gatewayId); includes those with no access grants. Uses scope=owned to avoid path conflict with /credential-summaries/{token}. */
+  listOwned: async (gatewayId: string, userId?: string): Promise<CredentialSummary[]> => {
+    const params = new URLSearchParams({ gatewayId, scope: "owned" });
+    if (userId != null && userId !== "") params.append("userId", userId);
+    return apiClient.get<CredentialSummary[]>(`/api/v1/credential-summaries?${params}`);
   },
 };

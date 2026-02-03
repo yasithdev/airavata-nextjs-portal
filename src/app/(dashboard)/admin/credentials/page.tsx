@@ -1,11 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Key, Lock, Trash2, MoreVertical, Copy, CheckCircle } from "lucide-react";
+import { Plus, Key, Lock, Trash2, MoreVertical, Copy, CheckCircle, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -31,7 +39,7 @@ import { useCredentials, useCreateSSHCredential, useCreatePasswordCredential, us
 import { toast } from "@/hooks/useToast";
 import { useSession } from "next-auth/react";
 import { useGateway } from "@/contexts/GatewayContext";
-import { GatewayBadge } from "@/components/gateway/GatewayBadge";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 import { formatDate } from "@/lib/utils";
 import type { CredentialSummary, SSHCredential, PasswordCredential } from "@/lib/api/credentials";
 import { useQuery } from "@tanstack/react-query";
@@ -62,14 +70,15 @@ function CredentialDetails({
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">Username</p>
-          <p className="text-sm">{credential.username}</p>
+          <p className="text-sm font-medium text-muted-foreground">Name</p>
+          <p className="text-sm">{credential.name || credential.description || "—"}</p>
         </div>
         <div>
           <p className="text-sm font-medium text-muted-foreground">Type</p>
           <Badge variant="secondary">{credential.type}</Badge>
         </div>
       </div>
+      <p className="text-xs text-muted-foreground">Login username is configured per resource deployment.</p>
       
       {credential.description && (
         <div>
@@ -122,109 +131,66 @@ function CredentialDetails({
   );
 }
 
-// Component to display a credential card with deployments
-function CredentialCard({ 
-  credential, 
-  computeResourcesMap, 
-  onView, 
-  onDelete 
-}: { 
-  credential: CredentialSummary; 
-  computeResourcesMap: Record<string, string>;
+// Table row for a single credential (deployments count shown in table)
+function CredentialTableRow({
+  credential,
+  onView,
+  onDelete,
+}: {
+  credential: CredentialSummary;
   onView: () => void;
   onDelete: () => void;
 }) {
-  const { data: deployments = [], isLoading: loadingDeployments } = useDeploymentsByCredential(credential.token);
-  
-  const getComputeName = (computeHostId: string | null | undefined): string => {
-    if (!computeHostId) return "Unknown";
-    return computeResourcesMap[computeHostId] || computeHostId;
-  };
+  const { data: deployments = [] } = useDeploymentsByCredential(credential.token);
 
   return (
-    <Card 
-      className="cursor-pointer hover:shadow-md transition-shadow"
-      onClick={onView}
-    >
-      <CardHeader className="flex flex-row items-start justify-between space-y-0">
-        <div className="flex items-start gap-3">
-          <div className={`p-2 rounded-lg ${credential.type === "SSH" ? "bg-green-100" : "bg-orange-100"}`}>
-            {credential.type === "SSH" ? (
-              <Key className={`h-5 w-5 ${credential.type === "SSH" ? "text-green-600" : "text-orange-600"}`} />
-            ) : (
-              <Lock className="h-5 w-5 text-orange-600" />
-            )}
-          </div>
-          <div>
-            <CardTitle className="text-base">{credential.username}</CardTitle>
-            <Badge variant="secondary" className="mt-1">{credential.type}</Badge>
-          </div>
+    <TableRow className="cursor-pointer hover:bg-muted/50" onClick={onView}>
+      <TableCell className="w-10 py-2">
+        <div className={`flex h-8 w-8 items-center justify-center rounded ${credential.type === "SSH" ? "bg-green-100 dark:bg-green-900/30" : "bg-orange-100 dark:bg-orange-900/30"}`}>
+          {credential.type === "SSH" ? (
+            <Key className="h-4 w-4 text-green-600 dark:text-green-400" />
+          ) : (
+            <Lock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+          )}
         </div>
+      </TableCell>
+      <TableCell className="py-2 font-medium">{credential.name || credential.description || "—"}</TableCell>
+      <TableCell className="max-w-[180px] truncate py-2 text-muted-foreground">
+        {credential.description || "—"}
+      </TableCell>
+      <TableCell className="py-2">
+        <Badge variant="secondary" className="text-xs">{credential.type}</Badge>
+      </TableCell>
+      <TableCell className="py-2 font-mono text-xs text-muted-foreground">
+        {credential.token.substring(0, 12)}…
+      </TableCell>
+      <TableCell className="py-2 text-muted-foreground whitespace-nowrap">
+        {credential.persistedTime ? formatDate(credential.persistedTime) : "—"}
+      </TableCell>
+      <TableCell className="py-2 text-muted-foreground tabular-nums">
+        {deployments.length}
+      </TableCell>
+      <TableCell className="w-0 py-2" onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" onClick={(e) => e.stopPropagation()}>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onView(); }}>
-              <Key className="h-4 w-4 mr-2" />
-              View Details
+            <DropdownMenuItem onClick={onView}>
+              <Eye className="h-4 w-4 mr-2" />
+              View details
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              className="text-destructive focus:text-destructive"
-              onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            >
+            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onDelete}>
               <Trash2 className="h-4 w-4 mr-2" />
               Delete
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          {/* Show gateway badge */}
-          {credential.gatewayId && (
-            <GatewayBadge gatewayId={credential.gatewayId} className="mb-2" />
-          )}
-          {credential.description && (
-            <p className="text-sm text-muted-foreground line-clamp-1">{credential.description}</p>
-          )}
-          <p className="text-xs text-muted-foreground">
-            Token: {credential.token.substring(0, 12)}...
-          </p>
-          {credential.persistedTime && (
-            <p className="text-xs text-muted-foreground">
-              Created: {formatDate(credential.persistedTime)}
-            </p>
-          )}
-          
-          {/* Show deployments */}
-          {loadingDeployments ? (
-            <div className="mt-2">
-              <Skeleton className="h-4 w-24" />
-            </div>
-          ) : deployments.length > 0 ? (
-            <div className="mt-2 pt-2 border-t">
-              <p className="text-xs font-medium text-muted-foreground mb-1">Active Deployments:</p>
-              <div className="flex flex-wrap gap-1">
-                {deployments.map((deployment: ApplicationDeploymentDescription) => (
-                  <Badge key={deployment.appDeploymentId} variant="outline" className="text-xs">
-                    <Server className="h-3 w-3 mr-1" />
-                    {getComputeName(deployment.computeHostId)}: {deployment.executablePath || "N/A"}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="mt-2 pt-2 border-t">
-              <p className="text-xs text-muted-foreground">No active deployments</p>
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -242,11 +208,11 @@ export default function CredentialsPage() {
   // Delete state
   const [deletingCredential, setDeletingCredential] = useState<CredentialSummary | null>(null);
   
+  const { defaultGatewayId } = usePortalConfig();
   const gatewayId =
     effectiveGatewayId ||
     session?.user?.gatewayId ||
-    process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID ||
-    "default";
+    defaultGatewayId;
   
   const { data: credentials, isLoading } = useCredentials();
   const createSSH = useCreateSSHCredential();
@@ -350,10 +316,30 @@ export default function CredentialsPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {[...Array(3)].map((_, i) => (
-            <Skeleton key={i} className="h-32" />
-          ))}
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10" />
+                <TableHead>Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Token</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Deployments</TableHead>
+                <TableHead className="w-0" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {[...Array(5)].map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell colSpan={8} className="h-12">
+                    <Skeleton className="h-4 w-full" />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       ) : !credentials || credentials.length === 0 ? (
         <Card>
@@ -368,16 +354,31 @@ export default function CredentialsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {credentials.map((credential) => (
-            <CredentialCard 
-              key={credential.token}
-              credential={credential}
-              computeResourcesMap={computeResourcesMap}
-              onView={() => handleOpenView(credential)}
-              onDelete={() => setDeletingCredential(credential)}
-            />
-          ))}
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10" />
+                <TableHead>Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Token</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Deployments</TableHead>
+                <TableHead className="w-0" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {credentials.map((credential) => (
+                <CredentialTableRow
+                  key={credential.token}
+                  credential={credential}
+                  onView={() => handleOpenView(credential)}
+                  onDelete={() => setDeletingCredential(credential)}
+                />
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 
@@ -471,7 +472,7 @@ export default function CredentialsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Credential</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete the credential for &quot;{deletingCredential?.username}&quot;? 
+              Are you sure you want to delete the credential &quot;{deletingCredential?.name || deletingCredential?.description || deletingCredential?.token.substring(0, 12)}&quot;? 
               This may affect compute resources that use this credential. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>

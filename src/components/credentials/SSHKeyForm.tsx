@@ -20,7 +20,7 @@ interface Props {
 
 export function SSHKeyForm({ onSubmit, onCancel, isLoading, gatewayId }: Props) {
   const [formData, setFormData] = useState({
-    username: "",
+    name: "",
     publicKey: "",
     privateKey: "",
     passphrase: "",
@@ -35,10 +35,10 @@ export function SSHKeyForm({ onSubmit, onCancel, isLoading, gatewayId }: Props) 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.username || !formData.publicKey || !formData.privateKey) {
+    if (!formData.name?.trim() || !formData.publicKey || !formData.privateKey) {
       toast({
         title: "Validation Error",
-        description: "Username, public key, and private key are required",
+        description: "Name, public key, and private key are required",
         variant: "destructive",
       });
       return;
@@ -46,7 +46,7 @@ export function SSHKeyForm({ onSubmit, onCancel, isLoading, gatewayId }: Props) 
 
     await onSubmit({
       gatewayId,
-      username: formData.username,
+      name: formData.name.trim(),
       publicKey: formData.publicKey,
       privateKey: formData.privateKey,
       passphrase: formData.passphrase || undefined,
@@ -152,7 +152,7 @@ export function SSHKeyForm({ onSubmit, onCancel, isLoading, gatewayId }: Props) 
       const result = await apiClient.post<{ success: boolean; message: string; details?: string }>("/api/v1/connectivity-test/ssh", {
         host: testHost,
         port: parseInt(testPort) || 22,
-        username: formData.username || "testuser",
+        username: undefined,
         privateKey: formData.privateKey,
       });
 
@@ -194,12 +194,22 @@ export function SSHKeyForm({ onSubmit, onCancel, isLoading, gatewayId }: Props) 
 
         <TabsContent value="upload" className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="username">Username *</Label>
+            <Label htmlFor="name">Name *</Label>
             <Input
-              id="username"
-              value={formData.username}
-              onChange={(e) => setFormData((prev) => ({ ...prev, username: e.target.value }))}
-              placeholder="Enter username for this credential"
+              id="name"
+              value={formData.name}
+              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+              placeholder="e.g. Laptop SSH, HPC login"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description">Description</Label>
+            <Input
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+              placeholder="Optional notes about this credential"
             />
           </div>
 
@@ -259,7 +269,7 @@ export function SSHKeyForm({ onSubmit, onCancel, isLoading, gatewayId }: Props) 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="passphrase">Passphrase (if encrypted)</Label>
+            <Label htmlFor="passphrase">Passphrase</Label>
             <Input
               id="passphrase"
               type="password"
@@ -268,27 +278,27 @@ export function SSHKeyForm({ onSubmit, onCancel, isLoading, gatewayId }: Props) 
               placeholder="Enter passphrase if key is encrypted"
             />
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
-            <Input
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-              placeholder="Description (optional)"
-            />
-          </div>
         </TabsContent>
 
         <TabsContent value="generate" className="space-y-4">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="gen-username">Username *</Label>
+              <Label htmlFor="gen-name">Name *</Label>
               <Input
-                id="gen-username"
-                value={formData.username}
-                onChange={(e) => setFormData((prev) => ({ ...prev, username: e.target.value }))}
-                placeholder="Enter username for this credential"
+                id="gen-name"
+                value={formData.name}
+                onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                placeholder="e.g. Laptop SSH, HPC login"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="gen-description">Description</Label>
+              <Input
+                id="gen-description"
+                value={formData.description}
+                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Optional notes about this credential"
               />
             </div>
 
@@ -393,16 +403,6 @@ export function SSHKeyForm({ onSubmit, onCancel, isLoading, gatewayId }: Props) 
                 </div>
               </div>
             )}
-
-            <div className="space-y-2">
-              <Label htmlFor="gen-description">Description</Label>
-              <Input
-                id="gen-description"
-                value={formData.description}
-                onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-                placeholder="Description (optional)"
-              />
-            </div>
           </div>
         </TabsContent>
       </Tabs>

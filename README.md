@@ -9,6 +9,7 @@ A modern, full-featured web portal for Apache Airavata built with Next.js 14, Re
 - **Experiments** - Create experiments from applications, monitor status, view outputs
 - **Applications** - Browse available applications and their configurations
 - **Storage** - File browser for managing experiment data
+- **Credentials & Resource Access** - Create SSH/password credentials, grant access to compute and storage resources with per-resource login username, and test connectivity
 - **Administration** - Manage compute resources, storage, applications, and gateways
 - **Authentication** - Keycloak OAuth/OIDC integration via NextAuth.js
 
@@ -53,21 +54,19 @@ cp .env.example .env.local
 
 Edit `.env.local` with your configuration:
 ```env
-# Airavata API Configuration
-NEXT_PUBLIC_API_URL=http://localhost:8080
+# Airavata API (server-side; portal proxies /api/v1/* to this URL)
+API_URL=http://localhost:8080
 
-# Default Gateway
-NEXT_PUBLIC_DEFAULT_GATEWAY_ID=default
+# Keycloak (use port 18080 and realm default when using airavata/.devcontainer)
+KEYCLOAK_ISSUER=http://localhost:18080/realms/default
+KEYCLOAK_CLIENT_ID=pga
+KEYCLOAK_CLIENT_SECRET=
 
-# Keycloak Configuration
-KEYCLOAK_CLIENT_ID=airavata-portal
-KEYCLOAK_CLIENT_SECRET=your-client-secret
-KEYCLOAK_ISSUER=http://localhost:8443/realms/airavata
-
-# NextAuth Configuration
+# NextAuth (must match the URL you open in the browser, e.g. http://localhost:3000)
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=generate-with-openssl-rand-base64-32
 ```
+Default gateway and other portal options are loaded from the API via `GET /api/v1/config`.
 
 4. Start the development server:
 ```bash
@@ -75,6 +74,26 @@ npm run dev
 ```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Keycloak 400 on login
+
+If you get a **400 Bad Request** on Keycloak’s login page (`/login-actions/authenticate`), the callback URL Keycloak receives doesn’t match the client’s **Valid redirect URIs**. Common causes:
+
+- **localhost vs 127.0.0.1** – Use the same host everywhere. If you open the portal at `http://127.0.0.1:3000`, Keycloak must have `http://127.0.0.1:3000/api/auth/callback/keycloak` (and `http://127.0.0.1:3000/*`) in Valid redirect URIs, and `NEXTAUTH_URL` should be `http://127.0.0.1:3000`. Prefer **http://localhost:3000** and set `NEXTAUTH_URL=http://localhost:3000` so it matches the devcontainer Keycloak setup.
+- **Wrong redirect URIs in Keycloak** – Fix in Keycloak Admin:
+
+1. Open **Keycloak Admin** (e.g. http://localhost:18080 → Administration Console).
+2. Select realm **default** → **Clients** → **pga**.
+3. Under **Valid redirect URIs**, add (if missing):
+   - `http://localhost:3000/api/auth/callback/keycloak`
+   - `http://localhost:3000/login`
+   - `http://localhost:3000/*` (optional catch-all for dev)
+   - If you use 127.0.0.1: `http://127.0.0.1:3000/api/auth/callback/keycloak`, `http://127.0.0.1:3000/*`
+4. Under **Valid post logout redirect URIs** you can use `+` or the same base URL.
+5. Under **Web origins**, use `http://localhost:3000` or `*` for dev.
+6. Save, then try signing in again from the portal (start from http://localhost:3000/login).
+
+If Keycloak was set up via the repo’s `.devcontainer/keycloak/setup-keycloak.sh`, the pga client already includes localhost and 127.0.0.1 redirect URIs. If the realm already existed before that change, run setup with `KEYCLOAK_INIT_WIPE=true` to recreate the realm and client, or add the URIs manually in Keycloak Admin.
 
 ## Project Structure
 
@@ -133,6 +152,10 @@ The portal connects to the Airavata REST API with endpoints at `/api/v1/`:
 | `/workflows` | Workflow management |
 | `/user-resource-profiles` | User preferences |
 | `/group-resource-profiles` | Group preferences |
+| `/credential-summaries` | Credential listing and summaries |
+| `/credentials/ssh`, `/credentials/password` | Create and retrieve credentials |
+| `/resource-access` | Access grants (credential + resource + login username) |
+| `/connectivity-test/ssh/validate` | Test SSH connectivity with credential and login username |
 
 ## Development
 
@@ -215,11 +238,12 @@ CMD ["node", "server.js"]
 
 For production, ensure all environment variables are properly set:
 
-- `NEXT_PUBLIC_API_URL` - Airavata API URL
+- `API_URL` - Airavata API base URL (server-side only; the portal proxies `/api/v1/*` to this URL; default gateway and portal options are fetched from the API via `GET /api/v1/config`).
 - `KEYCLOAK_CLIENT_ID` - Keycloak client ID
 - `KEYCLOAK_CLIENT_SECRET` - Keycloak client secret
-- `KEYCLOAK_ISSUER` - Keycloak issuer URL
-- `NEXTAUTH_URL` - Application URL
+- `KEYCLOAK_ISSUER` - Keycloak realm URL (e.g. `http://localhost:18080/realms/default`). There is no login form in the app; unauthenticated users are redirected to Keycloak.
+- `KEYCLOAK_CLIENT_ID` / `KEYCLOAK_CLIENT_SECRET` - Keycloak OAuth client (default client id: `pga`).
+- `NEXTAUTH_URL` - Application URL (for NextAuth callbacks)
 - `NEXTAUTH_SECRET` - Secret for session encryption
 
 ## Contributing
@@ -234,8 +258,6 @@ For production, ensure all environment variables are properly set:
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 
 ## End-to-End Testing
-
-For a complete walkthrough of setting up resources, creating applications, and running experiments, see [END_TO_END_TESTING.md](END_TO_END_TESTING.md).
 
 ### Quick Start Testing Flow
 
@@ -262,8 +284,6 @@ For a complete walkthrough of setting up resources, creating applications, and r
    - Create project
    - Create experiments from applications
    - Launch and monitor execution
-
-See [END_TO_END_TESTING.md](END_TO_END_TESTING.md) for detailed step-by-step instructions.
 
 ## Related Projects
 

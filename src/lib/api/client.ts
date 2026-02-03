@@ -1,7 +1,8 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from "axios";
-import { getSession } from "next-auth/react";
+import { getSession, signOut } from "next-auth/react";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+// API is proxied via Next.js (see app/api/v1/[...path]/route.ts); use same origin.
+const API_BASE_URL = typeof window !== "undefined" ? "" : process.env.API_URL || "http://localhost:8080";
 
 // Timeout configuration (in milliseconds)
 const DEFAULT_TIMEOUT = 30000; // 30 seconds
@@ -62,7 +63,8 @@ class ApiClient {
           }
           
           // Add gateway ID to query params if not already present and endpoint supports it
-          const selectedGatewayId = getSelectedGatewayId();
+          // Use OIDC claim (session.user.gatewayId) as fallback when no gateway selected
+          const selectedGatewayId = getSelectedGatewayId() ?? (session?.user as { gatewayId?: string })?.gatewayId ?? null;
           if (selectedGatewayId && config.url) {
             // Check if gatewayId is already in the URL string (e.g., ?gatewayId=...)
             const urlHasGatewayId = config.url.includes("gatewayId=");
@@ -87,34 +89,109 @@ class ApiClient {
     // Response interceptor for error handling
     this.client.interceptors.response.use(
       (response) => response,
-      (error: AxiosError) => {
-        // Log the full error for debugging
-        console.error("API Error:", {
-          url: error.config?.url,
-          method: error.config?.method,
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          message: error.message,
-          code: error.code,
-        });
-        
-        if (error.response?.status === 401) {
-          // Handle unauthorized - redirect to login
-          if (typeof window !== "undefined") {
-            window.location.href = "/login";
+      (error: AxiosError | Error) => {
+        // Build a serializable error summary (avoid logging raw objects that can show as {})
+        const err = error as AxiosError;
+        const errorInfo: Record<string, unknown> = {
+          url: err?.config?.url ?? err?.config?.baseURL ?? "unknown",
+          method: (err?.config?.method ?? "unknown").toUpperCase(),
+          status: err?.response?.status ?? "no status",
+          statusText: err?.response?.statusText ?? "no status text",
+          message: err?.message ?? (error as Error)?.message ?? "no message",
+          code: err?.code ?? "no code",
+        };
+
+        if (err?.response?.data != null) {
+          try {
+            const d = err.response.data;
+            errorInfo.data = typeof d === "string" ? d : JSON.stringify(d);
+          } catch {
+            errorInfo.data = "Unable to serialize response data";
           }
         }
-        // Extract error message from response
-        let errorMessage = error.message || "An error occurred";
+
+        try {
+          console.error("API Error:", JSON.stringify(errorInfo, null, 2));
+        } catch {
+          console.error(
+            "API Error:",
+            [errorInfo.url, errorInfo.method, errorInfo.status, errorInfo.message, errorInfo.code].join(" | ")
+          );
+        }
         
-        // Handle network errors specifically
-        if (error.code === 'ERR_NETWORK' || error.code === 'ECONNREFUSED') {
+        if (err?.response?.status === 401) {
+          // Clear NextAuth session so we don't retain stale session (e.g. after cold-start)
+          if (typeof window !== "undefined") {
+            signOut({ redirect: false }).then(() => {
+              window.location.href = "/login";
+            });
+          }
+        }
+        
+        if (err?.response?.status === 409) {
+          // Handle conflict - usually means resource already exists
+          let conflictMessage = "A conflict occurred. The resource may already exist.";
+          if (err?.response?.data) {
+            const data = err?.response.data as any;
+            if (typeof data === 'string') {
+              conflictMessage = data;
+            } else if (data.message) {
+              conflictMessage = data.message;
+            } else if (data.error) {
+              conflictMessage = data.error;
+            }
+          }
+          const conflictError = new Error(conflictMessage);
+          (conflictError as any).status = 409;
+          (conflictError as any).response = err?.response;
+          return Promise.reject(conflictError);
+        }
+        
+        // Extract error message from response
+        let errorMessage = (err?.message ?? (error as Error)?.message) || "An error occurred";
+        
+        // Handle 405 Method Not Allowed
+        if (err?.response?.status === 405) {
+          errorMessage = `Method not allowed for ${err?.config?.url || 'this endpoint'}. The endpoint may not support ${err?.config?.method?.toUpperCase() || 'this'} requests.`;
+          if (err?.response?.data) {
+            const data = err?.response.data as any;
+            if (typeof data === 'string' && data.trim()) {
+              errorMessage = data;
+            } else if (data.message) {
+              errorMessage = data.message;
+            } else if (data.error) {
+              errorMessage = data.error;
+            }
+          }
+        } else if (err?.code === 'ERR_NETWORK' || err?.code === 'ECONNREFUSED') {
+          // Handle network errors specifically
           errorMessage = "Cannot connect to the server. Please ensure the backend service is running.";
-        } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+        } else if (err?.code === 'ECONNABORTED' || err?.code === 'ETIMEDOUT') {
           errorMessage = "Request timed out. The server may be slow or unavailable.";
-        } else if (error.response?.data) {
-          const data = error.response.data as any;
+        } else if (err?.response?.data) {
+          // Extract error message from response data if available
+          try {
+            const data = err?.response.data as any;
+            if (typeof data === 'string' && data.trim()) {
+              errorMessage = data;
+            } else if (data.message) {
+              errorMessage = data.message;
+            } else if (data.error) {
+              errorMessage = data.error;
+            } else if (data.errorMessage) {
+              errorMessage = data.errorMessage;
+            } else if (data.errors && Array.isArray(data.errors)) {
+              errorMessage = data.errors.join(", ");
+            } else if (data.statusText) {
+              errorMessage = data.statusText;
+            }
+          } catch (e) {
+            // Keep existing errorMessage if parsing fails
+          }
+        } else if (err?.code === 'ECONNABORTED' || err?.code === 'ETIMEDOUT') {
+          errorMessage = "Request timed out. The server may be slow or unavailable.";
+        } else if (err?.response?.data) {
+          const data = err?.response.data as any;
           if (typeof data === 'string') {
             errorMessage = data;
           } else if (data.message) {
@@ -129,9 +206,9 @@ class ApiClient {
         }
         
         const enhancedError = new Error(errorMessage);
-        (enhancedError as any).status = error.response?.status;
-        (enhancedError as any).response = error.response;
-        (enhancedError as any).code = error.code;
+        (enhancedError as any).status = err?.response?.status;
+        (enhancedError as any).response = err?.response;
+        (enhancedError as any).code = err?.code;
         return Promise.reject(enhancedError);
       }
     );

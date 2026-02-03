@@ -11,10 +11,13 @@ import { useUser, useEnableUser, useDisableUser, useDeleteUser } from "@/hooks/u
 import { formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/useToast";
 import { useRouter } from "next/navigation";
+import { useGateway } from "@/contexts/GatewayContext";
 
 export default function UserDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { selectedGatewayId, getGatewayName } = useGateway();
+  const gatewayName = selectedGatewayId ? getGatewayName(selectedGatewayId) : "default";
   const userId = params.userId as string;
 
   const { data: user, isLoading } = useUser(userId);
@@ -67,7 +70,7 @@ export default function UserDetailPage() {
         title: "User deleted",
         description: "The user account has been deleted.",
       });
-      router.push("/admin/users");
+      router.push(`/${gatewayName}/admin/users`);
     } catch (error) {
       toast({
         title: "Error",
@@ -95,7 +98,7 @@ export default function UserDetailPage() {
         <h2 className="text-xl font-semibold">User not found</h2>
         <p className="text-muted-foreground mt-2">The requested user could not be found.</p>
         <Button asChild className="mt-4">
-          <Link href="/admin/users">Back to Users</Link>
+          <Link href={`/${gatewayName}/admin/users`}>Back to Users</Link>
         </Button>
       </div>
     );
@@ -106,7 +109,7 @@ export default function UserDetailPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/admin/users">
+            <Link href={`/${gatewayName}/admin/users`}>
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>

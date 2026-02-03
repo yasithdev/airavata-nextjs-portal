@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Bell } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,11 +16,13 @@ import { noticesApi, type Notice } from "@/lib/api/notices";
 import { formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/useToast";
 import { useGateway } from "@/contexts/GatewayContext";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 
 export default function NoticesPage() {
   const { effectiveGatewayId } = useGateway();
   const queryClient = useQueryClient();
-  const gatewayId = effectiveGatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = effectiveGatewayId || defaultGatewayId;
   
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -67,11 +69,16 @@ export default function NoticesPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Notices</h1>
-          <p className="text-muted-foreground">Manage announcements for users</p>
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Bell className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Notices</h1>
+            <p className="text-muted-foreground">Manage announcements for users</p>
+          </div>
         </div>
         <Button onClick={() => setIsCreateOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -128,8 +135,9 @@ export default function NoticesPage() {
         </div>
       ) : !isError ? (
         <Card>
-          <CardContent className="py-16 text-center text-muted-foreground">
-            No notices. Create one to announce updates to users.
+          <CardContent className="py-16 text-center">
+            <Bell className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+            <p className="text-muted-foreground">No notices. Create one to announce updates to users.</p>
           </CardContent>
         </Card>
       ) : null}

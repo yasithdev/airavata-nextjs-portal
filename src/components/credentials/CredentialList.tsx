@@ -69,7 +69,7 @@ export function CredentialList({ credentials, isLoading, onDelete, isDeleting }:
                   ) : (
                     <Lock className="h-5 w-5 text-muted-foreground" />
                   )}
-                  <CardTitle className="text-base">{credential.username}</CardTitle>
+                  <CardTitle className="text-base">{credential.name || credential.description || credential.token.substring(0, 12)}</CardTitle>
                 </div>
                 <Badge variant="secondary">{credential.type}</Badge>
               </div>
@@ -77,9 +77,9 @@ export function CredentialList({ credentials, isLoading, onDelete, isDeleting }:
             <CardContent>
               <div className="space-y-3">
                 {credential.gatewayId && <GatewayBadge gatewayId={credential.gatewayId} />}
-                {credential.description && (
+                {(credential.description || credential.name) && (
                   <p className="text-sm text-muted-foreground line-clamp-2">
-                    {credential.description}
+                    {credential.description || credential.name}
                   </p>
                 )}
                 <div className="text-xs text-muted-foreground">

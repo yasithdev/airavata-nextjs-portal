@@ -1,8 +1,8 @@
 "use client";
 
-import { FileCode, Plus, Search } from "lucide-react";
+import { FileCode, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchBar } from "@/components/ui/search-bar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
@@ -25,15 +25,11 @@ export default function WorkflowsPage() {
         </Button>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search workflows..."
-          className="pl-10"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
+      <SearchBar
+        placeholder="Search workflows..."
+        value={searchTerm}
+        onChange={setSearchTerm}
+      />
 
       <Card>
         <CardContent className="py-12 text-center">

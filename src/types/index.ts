@@ -131,6 +131,24 @@ export enum DataType {
   URI_COLLECTION = 'URI_COLLECTION',
   STDOUT = 'STDOUT',
   STDERR = 'STDERR',
+  STDIN = 'STDIN',
+}
+
+/** Default system input (STDIN). Always present, non-editable. */
+export const DEFAULT_SYSTEM_INPUT: InputDataObjectType = { name: "STDIN", type: DataType.STDIN, applicationArgument: "", isRequired: false };
+
+/** Default system outputs (STDOUT, STDERR). Always present, non-editable. */
+export const DEFAULT_SYSTEM_OUTPUTS: OutputDataObjectType[] = [
+  { name: "STDOUT", type: DataType.STDOUT, applicationArgument: "", isRequired: false },
+  { name: "STDERR", type: DataType.STDERR, applicationArgument: "", isRequired: false },
+];
+
+export function isSystemInputName(name: string): boolean {
+  return name === "STDIN";
+}
+
+export function isSystemOutputName(name: string): boolean {
+  return name === "STDOUT" || name === "STDERR";
 }
 
 export interface ExperimentStatus {
@@ -161,10 +179,12 @@ export interface ErrorModel {
   rootCauseErrorIdList?: string[];
 }
 
-// Process
+// Process (Job/Task are Process with processType; status/errors from EVENTS)
 export interface ProcessModel {
   processId: string;
   experimentId: string;
+  processType?: string;
+  processMetadata?: Record<string, unknown>;
   creationTime?: number;
   lastUpdateTime?: number;
   processStatuses?: ProcessStatus[];
@@ -313,6 +333,8 @@ export interface ApplicationDeploymentDescription {
   parallelism: ApplicationParallelismType;
   appDeploymentDescription?: string;
   defaultQueueName?: string;
+  /** Queue name (may come from API; alias for defaultQueueName where used) */
+  queueName?: string;
   defaultNodeCount?: number;
   defaultCPUCount?: number;
   defaultWalltime?: number;
@@ -329,6 +351,12 @@ export enum ApplicationParallelismType {
 }
 
 // Compute Resource
+export enum ComputeResourceType {
+  SLURM = "SLURM",
+  AWS = "AWS",
+  PLAIN = "PLAIN",
+}
+
 export interface ComputeResourceDescription {
   computeResourceId: string;
   hostName: string;
@@ -343,6 +371,22 @@ export interface ComputeResourceDescription {
   defaultNodeCount?: number;
   defaultCPUCount?: number;
   defaultWalltime?: number;
+  creationTime?: number;
+  updateTime?: number;
+  resourceType?: ComputeResourceType;
+  /** ID of the linked storage resource (auto-created with this compute resource) */
+  linkedStorageResourceId?: string;
+  /** Storage protocol for the linked storage resource (used during creation) */
+  storageProtocol?: DataMovementProtocol;
+  /** Projects/accounts configured for this compute resource */
+  projects?: ComputeResourceProject[];
+}
+
+export interface ComputeResourceProject {
+  projectName: string;
+  description?: string;
+  /** List of queue names this project has access to */
+  allowedQueues: string[];
 }
 
 export interface BatchQueue {
@@ -354,6 +398,7 @@ export interface BatchQueue {
   maxJobsInQueue?: number;
   maxMemory?: number;
   cpuPerNode?: number;
+  gpuPerNode?: number;
   defaultNodeCount?: number;
   defaultCPUCount?: number;
   defaultWalltime?: number;
@@ -361,17 +406,27 @@ export interface BatchQueue {
   isDefaultQueue?: boolean;
 }
 
+// Data movement protocol (matches backend DataMovementProtocol enum)
+export type DataMovementProtocol = "LOCAL" | "SCP" | "SFTP" | "GridFTP" | "UNICORE_STORAGE_SERVICE";
+
 // Storage Resource
 export interface StorageResourceDescription {
   storageResourceId: string;
   hostName: string;
   storageResourceDescription?: string;
+  dataMovementProtocol?: DataMovementProtocol;
   enabled?: boolean;
   creationTime?: number;
   updateTime?: number;
 }
 
-// Data Product
+// Data Product (unified with catalog dataset metadata)
+export interface DataProductTag {
+  id?: string;
+  name?: string;
+  color?: string;
+}
+
 export interface DataProductModel {
   productUri: string;
   gatewayId: string;
@@ -386,11 +441,41 @@ export interface DataProductModel {
   productMetadata?: Record<string, string>;
   replicaLocations?: DataReplicaLocationModel[];
   childProducts?: DataProductModel[];
+  primaryStorageResourceId?: string;
+  primaryFilePath?: string;
+  status?: string;
+  privacy?: string;
+  scope?: string;
+  ownerId?: string;
+  groupResourceProfileId?: string;
+  headerImage?: string;
+  format?: string;
+  updatedAt?: number;
+  authors?: string[];
+  tags?: DataProductTag[];
 }
 
 export enum DataProductType {
   FILE = 'FILE',
   COLLECTION = 'COLLECTION',
+}
+
+export enum DataProductResourceStatus {
+  NONE = 'NONE',
+  PENDING = 'PENDING',
+  VERIFIED = 'VERIFIED',
+  REJECTED = 'REJECTED',
+}
+
+export enum DataProductPrivacy {
+  PUBLIC = 'PUBLIC',
+  PRIVATE = 'PRIVATE',
+}
+
+export enum DataProductScope {
+  USER = 'USER',
+  GATEWAY = 'GATEWAY',
+  DELEGATED = 'DELEGATED',
 }
 
 export interface DataReplicaLocationModel {
@@ -428,10 +513,12 @@ export interface AiravataWorkflow {
   workflowOutputs?: OutputDataObjectType[];
 }
 
-// Preference System - Multi-level preferences (USER > GROUP > GATEWAY)
+// Preference System - 3-level hierarchy (Zanzibar-like): SYSTEM > GATEWAY > GROUP
 export enum PreferenceLevel {
+  SYSTEM = 'SYSTEM',
   GATEWAY = 'GATEWAY',
   GROUP = 'GROUP',
+  /** @deprecated Use GROUP with ownerId = user's personal group ID */
   USER = 'USER',
 }
 
@@ -454,8 +541,29 @@ export interface Preference {
   updatedTime?: number;
 }
 
+/** Resolved key-value preferences (legacy flat map) */
 export interface ResolvedPreferences {
   [key: string]: string;
+}
+
+/** Result of preference resolution with conflict detection */
+export interface ResolvedPreferencesResult {
+  resolved: Record<string, string>;
+  conflictKeys: string[];
+  conflictOptions: Record<string, GroupPreferenceOption[]>;
+}
+
+export interface GroupPreferenceOption {
+  groupId: string;
+  value: string;
+}
+
+/** Request to set explicit group selection for a conflict */
+export interface GroupSelectionRequest {
+  resourceType: PreferenceResourceType;
+  resourceId: string;
+  selectionKey: string;
+  selectedGroupId: string;
 }
 
 export interface SetPreferenceRequest {
@@ -478,6 +586,8 @@ export interface ResourceAccess {
   ownerType: PreferenceLevel;
   gatewayId: string;
   credentialToken?: string;
+  /** Login username for this resource (per assignment). */
+  loginUsername?: string | null;
   enabled: boolean;
   createdTime?: number;
   updatedTime?: number;
@@ -490,32 +600,57 @@ export interface AccessGrantRequest {
   ownerType: PreferenceLevel;
   gatewayId: string;
   credentialToken?: string;
+  /** Login username for this resource (per assignment). */
+  loginUsername?: string | null;
   enabled?: boolean;
 }
 
 export interface AccessGrantUpdateRequest {
   credentialToken?: string;
+  /** Login username for this resource (per assignment). */
+  loginUsername?: string | null;
   enabled?: boolean;
+}
+
+/** Unified resource access grant (credential + compute resource + deployment settings). */
+export interface ResourceAccessGrant {
+  id?: number;
+  gatewayId: string;
+  credentialToken: string;
+  computeResourceId: string;
+  loginUsername?: string | null;
+  executablePath?: string | null;
+  description?: string | null;
+  defaultQueueName?: string | null;
+  defaultNodeCount?: number;
+  defaultCpuCount?: number;
+  defaultWalltime?: number;
+  parallelism?: ApplicationParallelismType | null;
+  enabled?: boolean;
+  creationTime?: number;
+  updateTime?: number;
 }
 
 // Common preference keys for compute resources
 export const ComputePreferenceKeys = {
-  LOGIN_USERNAME: 'loginUserName',
+  LOGIN_USERNAME: 'loginUsername',
   PREFERRED_BATCH_QUEUE: 'preferredBatchQueue',
   SCRATCH_LOCATION: 'scratchLocation',
   ALLOCATION_PROJECT_NUMBER: 'allocationProjectNumber',
-  CREDENTIAL_TOKEN: 'credentialToken',
+  RESOURCE_CREDENTIAL_TOKEN: 'resourceSpecificCredentialStoreToken',
   QUALITY_OF_SERVICE: 'qualityOfService',
   RESERVATION: 'reservation',
   RESERVATION_START_TIME: 'reservationStartTime',
   RESERVATION_END_TIME: 'reservationEndTime',
+  PREFERRED_JOB_SUBMISSION_PROTOCOL: 'preferredJobSubmissionProtocol',
+  PREFERRED_DATA_MOVEMENT_PROTOCOL: 'preferredDataMovementProtocol',
 } as const;
 
 // Common preference keys for storage resources
 export const StoragePreferenceKeys = {
-  LOGIN_USERNAME: 'loginUserName',
+  LOGIN_USERNAME: 'loginUsername',
   FILE_SYSTEM_ROOT_LOCATION: 'fileSystemRootLocation',
-  CREDENTIAL_TOKEN: 'credentialToken',
+  RESOURCE_CREDENTIAL_TOKEN: 'resourceSpecificCredentialStoreToken',
 } as const;
 
 // Session/Auth types
@@ -547,7 +682,6 @@ export enum CredentialType {
 export interface SSHCredential {
   token?: string;
   gatewayId: string;
-  username: string;
   passphrase?: string;
   publicKey?: string;
   privateKey?: string;
@@ -558,8 +692,7 @@ export interface SSHCredential {
 export interface PasswordCredential {
   token?: string;
   gatewayId: string;
-  portalUserName: string;
-  loginUserName: string;
+  portalUserName?: string;
   password: string;
   description?: string;
   persistedTime?: number;

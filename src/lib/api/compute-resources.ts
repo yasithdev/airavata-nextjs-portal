@@ -21,4 +21,23 @@ export const computeResourcesApi = {
   delete: async (computeResourceId: string): Promise<void> => {
     return apiClient.delete(`/api/v1/compute-resources/${computeResourceId}`);
   },
+
+  /**
+   * Check if a compute resource exists at higher levels (GATEWAY or GROUP)
+   * and return information about where it's defined.
+   */
+  getHierarchy: async (
+    computeResourceId: string,
+    gatewayId: string
+  ): Promise<{
+    exists: boolean;
+    canCreate: boolean;
+    canOverride: boolean;
+    level: "NONE" | "GATEWAY" | "GROUP";
+    resourceId: string;
+  }> => {
+    return apiClient.get(
+      `/api/v1/compute-resources/${computeResourceId}/hierarchy?gatewayId=${gatewayId}`
+    );
+  },
 };

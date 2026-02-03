@@ -83,7 +83,7 @@ export function RecentExperiments({ experiments = [], projects = [], isLoading, 
         </CardHeader>
         <CardContent>
           <div className="border rounded-lg">
-            <div className="p-4 space-y-3">
+            <div className="p-4 space-y-4">
               {[...Array(5)].map((_, i) => (
                 <Skeleton key={i} className="h-12 w-full" />
               ))}
@@ -103,18 +103,11 @@ export function RecentExperiments({ experiments = [], projects = [], isLoading, 
           <CardDescription>Your projects and recently used experiments</CardDescription>
         </CardHeader>
         <CardContent>
-          {experiments.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <FolderKanban className="h-12 w-12 text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No experiments found</p>
-            </div>
-          ) : (
-            <ExperimentTable
-              experiments={experiments}
-              onDelete={onDelete}
-              showProject={true}
-            />
-          )}
+          <ExperimentTable
+            experiments={experiments}
+            onDelete={onDelete}
+            showProject={true}
+          />
         </CardContent>
       </Card>
     );
@@ -127,7 +120,7 @@ export function RecentExperiments({ experiments = [], projects = [], isLoading, 
         <CardDescription>Your projects and recently used experiments</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-6">
+        <div className="space-y-4">
           {projectsWithExperiments.map(({ project, experiments: projectExperiments }) => {
             if (projectExperiments.length === 0) {
               return null; // Skip projects with no experiments

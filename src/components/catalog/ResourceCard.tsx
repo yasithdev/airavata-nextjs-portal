@@ -1,18 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { Database, GitBranch } from "lucide-react";
+import { Database, GitBranch, Play } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { CatalogResource } from "@/types/catalog";
 import { ResourceType } from "@/types/catalog";
+import { useRouter } from "next/navigation";
+import { getCatalogResourcePermalink } from "@/lib/permalink";
 
 interface Props {
   resource: CatalogResource;
 }
 
 export function ResourceCard({ resource }: Props) {
+  const router = useRouter();
+  
   const getIcon = () => {
     switch (resource.type) {
       case ResourceType.DATASET:
@@ -22,6 +26,12 @@ export function ResourceCard({ resource }: Props) {
       default:
         return <GitBranch className="h-5 w-5" />;
     }
+  };
+
+  const handleRun = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    router.push(getCatalogResourcePermalink(resource.id, resource.type));
   };
 
   return (
@@ -66,6 +76,14 @@ export function ResourceCard({ resource }: Props) {
                   +{resource.tags.length - 3}
                 </Badge>
               )}
+            </div>
+          )}
+          {resource.type === ResourceType.REPOSITORY && (
+            <div className="pt-2">
+              <Button onClick={handleRun} size="sm" className="w-full">
+                <Play className="mr-2 h-4 w-4" />
+                Run
+              </Button>
             </div>
           )}
         </CardContent>

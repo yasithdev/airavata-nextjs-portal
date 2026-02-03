@@ -24,7 +24,7 @@ export function useResourceAccess() {
      */
     useAccessGrants: (resourceType: PreferenceResourceType, resourceId: string) =>
       useQuery({
-        queryKey: ['resourceAccess', resourceType, resourceId],
+        queryKey: ['resource-access', resourceType, resourceId],
         queryFn: () => resourceAccessApi.getAccessGrants(resourceType, resourceId),
         enabled: !!resourceId,
       }),
@@ -38,7 +38,7 @@ export function useResourceAccess() {
       groupIds?: string[]
     ) =>
       useQuery({
-        queryKey: ['resourceAccess', 'user', userId, resourceType, gatewayId, groupIds],
+        queryKey: ['resource-access', 'user', userId, resourceType, gatewayId, groupIds],
         queryFn: () =>
           resourceAccessApi.getAccessibleResources(userId, gatewayId, resourceType, groupIds),
         enabled: !!userId && !!gatewayId,
@@ -49,7 +49,7 @@ export function useResourceAccess() {
      */
     useAccessGrantsByOwner: (ownerId: string, ownerType: PreferenceLevel) =>
       useQuery({
-        queryKey: ['resourceAccess', 'owner', ownerId, ownerType],
+        queryKey: ['resource-access', 'owner', ownerId, ownerType],
         queryFn: () => resourceAccessApi.getAccessGrantsByOwner(ownerId, ownerType),
         enabled: !!ownerId,
       }),
@@ -59,7 +59,7 @@ export function useResourceAccess() {
      */
     useEnabledAccessGrants: (resourceType: PreferenceResourceType, resourceId: string) =>
       useQuery({
-        queryKey: ['resourceAccess', 'enabled', resourceType, resourceId],
+        queryKey: ['resource-access', 'enabled', resourceType, resourceId],
         queryFn: () => resourceAccessApi.getEnabledAccessGrants(resourceType, resourceId),
         enabled: !!resourceId,
       }),
@@ -70,16 +70,8 @@ export function useResourceAccess() {
     useCreateAccessGrant: () =>
       useMutation({
         mutationFn: (request: AccessGrantRequest) => resourceAccessApi.createAccessGrant(request),
-        onSuccess: (_, variables) => {
-          queryClient.invalidateQueries({
-            queryKey: ['resourceAccess', variables.resourceType, variables.resourceId],
-          });
-          queryClient.invalidateQueries({
-            queryKey: ['resourceAccess', 'owner', variables.ownerId],
-          });
-          queryClient.invalidateQueries({
-            queryKey: ['resourceAccess', 'enabled', variables.resourceType, variables.resourceId],
-          });
+        onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ['resource-access'] });
         },
       }),
 
@@ -91,7 +83,7 @@ export function useResourceAccess() {
         mutationFn: ({ id, request }: { id: number; request: AccessGrantUpdateRequest }) =>
           resourceAccessApi.updateAccessGrant(id, request),
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ['resourceAccess'] });
+          queryClient.invalidateQueries({ queryKey: ['resource-access'] });
         },
       }),
 
@@ -102,7 +94,7 @@ export function useResourceAccess() {
       useMutation({
         mutationFn: (id: number) => resourceAccessApi.deleteAccessGrant(id),
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ['resourceAccess'] });
+          queryClient.invalidateQueries({ queryKey: ['resource-access'] });
         },
       }),
 
@@ -114,7 +106,7 @@ export function useResourceAccess() {
         mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) =>
           resourceAccessApi.setAccessGrantEnabled(id, enabled),
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: ['resourceAccess'] });
+          queryClient.invalidateQueries({ queryKey: ['resource-access'] });
         },
       }),
   };
@@ -128,7 +120,7 @@ export function useAccessibleComputeResources(userId: string, groupIds?: string[
   const gatewayId = effectiveGatewayId || '';
 
   return useQuery({
-    queryKey: ['resourceAccess', 'user', userId, 'COMPUTE', gatewayId, groupIds],
+    queryKey: ['resource-access', 'user', userId, 'COMPUTE', gatewayId, groupIds],
     queryFn: () => resourceAccessApi.getAccessibleComputeResources(userId, gatewayId, groupIds),
     enabled: !!userId && !!gatewayId,
   });
@@ -142,7 +134,7 @@ export function useAccessibleStorageResources(userId: string, groupIds?: string[
   const gatewayId = effectiveGatewayId || '';
 
   return useQuery({
-    queryKey: ['resourceAccess', 'user', userId, 'STORAGE', gatewayId, groupIds],
+    queryKey: ['resource-access', 'user', userId, 'STORAGE', gatewayId, groupIds],
     queryFn: () => resourceAccessApi.getAccessibleStorageResources(userId, gatewayId, groupIds),
     enabled: !!userId && !!gatewayId,
   });

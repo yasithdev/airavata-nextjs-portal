@@ -33,6 +33,7 @@ interface FileBrowserProps {
   onCreateFolder?: () => void;
   onDelete?: (file: DataProductModel) => void;
   onDownload?: (file: DataProductModel) => void;
+  hideToolbar?: boolean;
 }
 
 export function FileBrowser({
@@ -44,6 +45,7 @@ export function FileBrowser({
   onCreateFolder,
   onDelete,
   onDownload,
+  hideToolbar = false,
 }: FileBrowserProps) {
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
 
@@ -81,62 +83,75 @@ export function FileBrowser({
 
   return (
     <div className="space-y-4">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={onUpload}>
-            <Upload className="h-4 w-4 mr-2" />
-            Upload
-          </Button>
-          <Button variant="outline" size="sm" onClick={onCreateFolder}>
-            <FolderPlus className="h-4 w-4 mr-2" />
-            New Folder
-          </Button>
-        </div>
-        {selectedFiles.size > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              {selectedFiles.size} selected
-            </span>
-            <Button variant="destructive" size="sm">
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </Button>
+      {!hideToolbar && (
+        <>
+          {/* Toolbar */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={onUpload}>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload
+              </Button>
+              <Button variant="outline" size="sm" onClick={onCreateFolder}>
+                <FolderPlus className="h-4 w-4 mr-2" />
+                New Folder
+              </Button>
+            </div>
+            {selectedFiles.size > 0 && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">
+                  {selectedFiles.size} selected
+                </span>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </Button>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-1 text-sm">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2"
-          onClick={() => onNavigate?.([])}
-        >
-          <Home className="h-4 w-4" />
-        </Button>
-        {currentPath.map((segment, idx) => (
-          <div key={idx} className="flex items-center">
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-1 text-sm">
             <Button
               variant="ghost"
               size="sm"
               className="h-7 px-2"
-              onClick={() => onNavigate?.(currentPath.slice(0, idx + 1))}
+              onClick={() => onNavigate?.([])}
             >
-              {segment}
+              <Home className="h-4 w-4" />
             </Button>
+            {currentPath.map((segment, idx) => (
+              <div key={idx} className="flex items-center">
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2"
+                  onClick={() => onNavigate?.(currentPath.slice(0, idx + 1))}
+                >
+                  {segment}
+                </Button>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </>
+      )}
 
       {/* File List */}
-      <div className="border rounded-lg divide-y">
+      <div className={hideToolbar ? "divide-y" : "border rounded-lg divide-y"}>
         {files.length === 0 ? (
-          <div className="p-8 text-center">
-            <Folder className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">This folder is empty</p>
+          <div className="py-16 px-8 text-center">
+            <div className="flex flex-col items-center gap-4">
+              <div className="rounded-full bg-muted p-4">
+                <Folder className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <div className="space-y-1">
+                <p className="font-medium text-muted-foreground">This folder is empty</p>
+                <p className="text-sm text-muted-foreground/70">
+                  Upload files or create a new folder to get started
+                </p>
+              </div>
+            </div>
           </div>
         ) : (
           files.map((file) => (

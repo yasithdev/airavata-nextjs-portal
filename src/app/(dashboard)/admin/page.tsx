@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Server, Database, AppWindow, Building2, Users, Settings } from "lucide-react";
+import { Server, Database, Building2, Users, Settings } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 const adminSections = [
@@ -20,14 +20,6 @@ const adminSections = [
     icon: Database,
     color: "text-green-600",
     bgColor: "bg-green-100",
-  },
-  {
-    title: "Applications",
-    description: "Manage application interfaces and deployments",
-    href: "/admin/applications",
-    icon: AppWindow,
-    color: "text-purple-600",
-    bgColor: "bg-purple-100",
   },
   {
     title: "Gateways",
@@ -57,7 +49,7 @@ const adminSections = [
 
 export default function AdminPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Administration</h1>
         <p className="text-muted-foreground">

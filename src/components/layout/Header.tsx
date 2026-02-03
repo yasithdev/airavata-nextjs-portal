@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { Bell, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { GatewaySelector } from "@/components/gateway/GatewaySelector";
+import { RoleSelector } from "@/components/gateway/RoleSelector";
 import { useGateway } from "@/contexts/GatewayContext";
 
 interface HeaderProps {
@@ -22,7 +23,10 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const { data: session } = useSession();
-  const { dashboardHref } = useGateway();
+  const { dashboardHref, isRootUser, accessibleGateways } = useGateway();
+  
+  // Show role selector if user has multiple roles available
+  const showRoleSelector = isRootUser || accessibleGateways.length > 0;
 
   const getInitials = (name?: string | null) => {
     if (!name) return "U";
@@ -35,7 +39,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-background">
+    <header className="z-40 shrink-0 border-b bg-background">
       <div className="flex h-16 items-center gap-4 px-4 md:px-6">
         <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick}>
           <Menu className="h-5 w-5" />
@@ -50,14 +54,16 @@ export function Header({ onMenuClick }: HeaderProps) {
 
         <div className="flex-1" />
 
-        <div className="hidden md:flex items-center gap-4">
-          <GatewaySelector />
+        <div className="flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-4">
+            <GatewaySelector />
+            {showRoleSelector && <RoleSelector />}
+          </div>
+          <Button variant="ghost" size="icon" className="relative">
+            <Bell className="h-5 w-5" />
+            <span className="sr-only">Notifications</span>
+          </Button>
         </div>
-
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="h-5 w-5" />
-          <span className="sr-only">Notifications</span>
-        </Button>
 
         {/* Expanded user icon with avatar, name, and email */}
         <DropdownMenu>
@@ -89,8 +95,32 @@ export function Header({ onMenuClick }: HeaderProps) {
               <Link href="/account">Account</Link>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild className="cursor-pointer text-red-600">
-              <Link href="/api/auth/logout">Log out</Link>
+            <DropdownMenuItem
+              className="cursor-pointer text-red-600"
+              onSelect={async () => {
+                // Federated logout flow:
+                // 1. Call NextAuth signOut to clear local session (HTTP-only cookies)
+                // 2. Get IdP logout URL from server
+                // 3. Redirect to IdP for complete logout
+                try {
+                  // First, clear local NextAuth session
+                  await signOut({ redirect: false });
+                  
+                  // Then get the IdP logout URL and redirect
+                  const response = await fetch('/api/auth/logout', { method: 'POST' });
+                  const data = await response.json();
+                  if (data.logoutUrl) {
+                    window.location.href = data.logoutUrl;
+                  } else {
+                    window.location.href = '/login';
+                  }
+                } catch {
+                  // Fallback: just redirect to login
+                  window.location.href = '/login';
+                }
+              }}
+            >
+              Log out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

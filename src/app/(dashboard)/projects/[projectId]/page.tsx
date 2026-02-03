@@ -21,7 +21,7 @@ export default function ProjectDetailPage() {
 
   if (projectLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex items-center gap-4">
           <Skeleton className="h-10 w-10" />
           <div className="space-y-2">

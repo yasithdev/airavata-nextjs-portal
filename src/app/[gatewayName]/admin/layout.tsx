@@ -22,7 +22,7 @@ export default function GatewayAdminLayout({
   useGatewayAdminRouteGuard(gatewayName);
 
   useEffect(() => {
-    const gatewayId = getGatewayIdFromName(gatewayName, accessibleGateways, getGatewayName);
+    const gatewayId = getGatewayIdFromName(gatewayName, accessibleGateways);
     if (gatewayId) {
       setSelectedGatewayId(gatewayId);
     }

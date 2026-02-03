@@ -15,7 +15,7 @@ interface Props {
 
 export function PasswordCredentialForm({ onSubmit, onCancel, isLoading, gatewayId }: Props) {
   const [formData, setFormData] = useState({
-    loginUsername: "",
+    name: "",
     password: "",
     confirmPassword: "",
     description: "",
@@ -24,8 +24,8 @@ export function PasswordCredentialForm({ onSubmit, onCancel, isLoading, gatewayI
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.loginUsername || !formData.password) {
-      alert("Username and password are required");
+    if (!formData.name?.trim() || !formData.password) {
+      alert("Name and password are required");
       return;
     }
 
@@ -36,7 +36,7 @@ export function PasswordCredentialForm({ onSubmit, onCancel, isLoading, gatewayI
 
     await onSubmit({
       gatewayId,
-      loginUsername: formData.loginUsername,
+      name: formData.name.trim(),
       password: formData.password,
       description: formData.description || undefined,
     });
@@ -45,12 +45,22 @@ export function PasswordCredentialForm({ onSubmit, onCancel, isLoading, gatewayI
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="login-username">Login Username *</Label>
+        <Label htmlFor="name">Name *</Label>
         <Input
-          id="login-username"
-          value={formData.loginUsername}
-          onChange={(e) => setFormData((prev) => ({ ...prev, loginUsername: e.target.value }))}
-          placeholder="Enter login username"
+          id="name"
+          value={formData.name}
+          onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+          placeholder="e.g. HPC login, Cluster password"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="description">Description</Label>
+        <Input
+          id="description"
+          value={formData.description}
+          onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
+          placeholder="Optional notes about this credential"
         />
       </div>
 
@@ -73,16 +83,6 @@ export function PasswordCredentialForm({ onSubmit, onCancel, isLoading, gatewayI
           value={formData.confirmPassword}
           onChange={(e) => setFormData((prev) => ({ ...prev, confirmPassword: e.target.value }))}
           placeholder="Confirm password"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="description">Description</Label>
-        <Input
-          id="description"
-          value={formData.description}
-          onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-          placeholder="Description (optional)"
         />
       </div>
 

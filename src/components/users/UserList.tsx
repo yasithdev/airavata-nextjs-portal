@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Eye, CheckCircle, XCircle, Mail, MailCheck } from "lucide-react";
+import { Eye, CheckCircle, XCircle, Mail, MailCheck, Users } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { GatewayBadge } from "@/components/gateway/GatewayBadge";
 import { formatDate } from "@/lib/utils";
+import { useGateway } from "@/contexts/GatewayContext";
 import type { User } from "@/lib/api/users";
 
 interface Props {
@@ -16,6 +17,9 @@ interface Props {
 }
 
 export function UserList({ users, isLoading }: Props) {
+  const { selectedGatewayId, getGatewayName } = useGateway();
+  const gatewayName = selectedGatewayId ? getGatewayName(selectedGatewayId) : "default";
+
   if (isLoading) {
     return (
       <div className="space-y-3">
@@ -29,8 +33,9 @@ export function UserList({ users, isLoading }: Props) {
   if (!users || users.length === 0) {
     return (
       <Card>
-        <CardContent className="py-16 text-center text-muted-foreground">
-          No users found
+        <CardContent className="py-16 text-center">
+          <Users className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+          <p className="text-muted-foreground">No users found</p>
         </CardContent>
       </Card>
     );
@@ -39,7 +44,7 @@ export function UserList({ users, isLoading }: Props) {
   return (
     <div className="space-y-3">
       {users.map((user) => (
-        <Link key={user.airavataInternalUserId} href={`/admin/users/${user.userId}`}>
+        <Link key={user.airavataInternalUserId} href={`/${gatewayName}/admin/users/${user.userId}`}>
           <Card className="cursor-pointer hover:shadow-md transition-shadow">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">

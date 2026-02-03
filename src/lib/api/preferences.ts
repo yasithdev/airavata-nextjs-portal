@@ -1,20 +1,21 @@
 import { apiClient } from './client';
 import {
+  GroupSelectionRequest,
   PreferenceLevel,
   PreferenceResourceType,
   ResolvedPreferences,
+  ResolvedPreferencesResult,
   SetPreferenceRequest,
 } from '@/types';
 
 const BASE_URL = '/api/v1/preferences';
 
 /**
- * Preferences API - Multi-level preference management
- * Supports GATEWAY, GROUP, and USER levels with USER > GROUP > GATEWAY precedence
+ * Preferences API - 3-level hierarchy (SYSTEM > GATEWAY > GROUP) with conflict resolution
  */
 export const preferencesApi = {
   /**
-   * Resolve effective preferences for a resource applying precedence rules
+   * Resolve effective preferences for a resource (returns flat map; use resolvePreferencesWithConflicts for conflict info)
    */
   resolvePreferences: async (
     resourceType: PreferenceResourceType,
@@ -23,15 +24,36 @@ export const preferencesApi = {
     userId?: string,
     groupIds?: string[]
   ): Promise<ResolvedPreferences> => {
+    const result = await preferencesApi.resolvePreferencesWithConflicts(
+      resourceType,
+      resourceId,
+      gatewayId,
+      userId,
+      groupIds
+    );
+    return result.resolved;
+  },
+
+  /**
+   * Resolve preferences with conflict detection (when multiple groups have same key)
+   */
+  resolvePreferencesWithConflicts: async (
+    resourceType: PreferenceResourceType,
+    resourceId: string,
+    gatewayId: string,
+    userId?: string,
+    groupIds?: string[]
+  ): Promise<ResolvedPreferencesResult> => {
     const params = new URLSearchParams({
       resourceType,
       resourceId,
       gatewayId,
+      withConflicts: 'true',
     });
     if (userId) params.append('userId', userId);
     if (groupIds?.length) params.append('groupIds', groupIds.join(','));
 
-    return apiClient.get<ResolvedPreferences>(`${BASE_URL}/resolve?${params}`);
+    return apiClient.get<ResolvedPreferencesResult>(`${BASE_URL}/resolve?${params}`);
   },
 
   /**
@@ -190,6 +212,19 @@ export const preferencesApi = {
   ): Promise<void> => {
     const params = new URLSearchParams({ level, ownerId, key });
     await apiClient.delete(`${BASE_URL}/${resourceType}/${resourceId}?${params}`);
+  },
+
+  /**
+   * Set explicit group selection when multiple groups have conflicting preferences (Zanzibar conflict resolution)
+   */
+  setGroupSelection: async (
+    gatewayId: string,
+    request: GroupSelectionRequest
+  ): Promise<void> => {
+    await apiClient.post(
+      `${BASE_URL}/selection?gatewayId=${gatewayId}`,
+      request
+    );
   },
 
   /**

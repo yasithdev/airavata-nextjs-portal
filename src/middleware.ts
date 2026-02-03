@@ -6,16 +6,28 @@ export async function middleware(request: NextRequest) {
   const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
   const { pathname } = request.nextUrl;
 
-  // Public routes that don't require authentication
-  const publicRoutes = ["/login", "/api/auth"];
-  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
-
-  // If accessing a public route, allow it
-  if (isPublicRoute) {
+  // Auth API routes should always be allowed (login/logout flow)
+  if (pathname.startsWith("/api/auth")) {
     return NextResponse.next();
   }
 
-  // If no token and trying to access protected route, redirect to login
+  // Login page handling
+  if (pathname === "/login" || pathname.startsWith("/login")) {
+    // Session recovery: we redirected here after session-check 401 (stale token).
+    // Do NOT redirect to dashboard — let the user land on login so we can clear the stale session.
+    if (request.nextUrl.searchParams.get("session_expired") === "1") {
+      return NextResponse.next();
+    }
+    // If user is already authenticated, redirect them to the dashboard
+    if (token) {
+      const gatewayId = (token as { gatewayId?: string }).gatewayId || "default";
+      const dashboardUrl = new URL(`/${gatewayId}/dashboard`, request.url);
+      return NextResponse.redirect(dashboardUrl);
+    }
+    return NextResponse.next();
+  }
+
+  // Protected routes - require authentication
   if (!token) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);

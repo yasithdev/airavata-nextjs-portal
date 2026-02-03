@@ -4,9 +4,9 @@ import { useState, Suspense, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter, useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { Plus, Search, FlaskConical, FolderKanban, X } from "lucide-react";
+import { Plus, FlaskConical, FolderKanban, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { SearchBar } from "@/components/ui/search-bar";
 import {
   Dialog,
   DialogContent,
@@ -150,7 +150,7 @@ function DashboardContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
@@ -164,21 +164,17 @@ function DashboardContent() {
         isLoading={experimentsLoading || projectsLoading}
       />
 
-      <div className="space-y-3">
-        <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg border">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search projects and experiments..."
-              className="pl-10 border-0 bg-transparent shadow-none focus-visible:ring-0"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+      <div className="space-y-4">
+        <SearchBar
+          placeholder="Search projects and experiments..."
+          value={search}
+          onChange={setSearch}
+        >
           {(search || selectedProjectIds.size > 0) && (
             <>
               <div className="h-6 w-px bg-border" />
               <Button
+                type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => {
@@ -192,7 +188,7 @@ function DashboardContent() {
               </Button>
             </>
           )}
-        </div>
+        </SearchBar>
 
         {projectsLoading ? (
           <div className="flex gap-2 flex-wrap">
@@ -237,17 +233,33 @@ function DashboardContent() {
               New Project
             </Button>
           </div>
-        ) : null}
+        ) : (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCreateProjectOpen(true)}
+              className="rounded-full text-sm font-medium"
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              New Project
+            </Button>
+          </div>
+        )}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-[auto_1fr]">
-        <QuickActions gatewayName={gatewayName} onCreateProject={() => setIsCreateProjectOpen(true)} />
-        <RecentExperiments
-          experiments={recentExperimentsToShow}
-          projects={recentProjectsToShow}
-          isLoading={experimentsLoading || projectsLoading}
-          onDelete={setExperimentToDelete}
-        />
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="md:col-span-1">
+          <QuickActions gatewayName={gatewayName} onCreateProject={() => setIsCreateProjectOpen(true)} />
+        </div>
+        <div className="md:col-span-3">
+          <RecentExperiments
+            experiments={recentExperimentsToShow}
+            projects={recentProjectsToShow}
+            isLoading={experimentsLoading || projectsLoading}
+            onDelete={setExperimentToDelete}
+          />
+        </div>
       </div>
 
       <Dialog open={isCreateProjectOpen} onOpenChange={setIsCreateProjectOpen}>
@@ -384,7 +396,7 @@ export default function DashboardPage() {
   return (
     <Suspense
       fallback={
-        <div className="space-y-6">
+        <div className="space-y-4">
           <Skeleton className="h-10 w-64" />
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {[...Array(6)].map((_, i) => (

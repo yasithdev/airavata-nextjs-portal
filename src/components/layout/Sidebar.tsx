@@ -6,7 +6,6 @@ import {
   LayoutDashboard,
   FolderKanban,
   FlaskConical,
-  AppWindow,
   HardDrive,
   Settings,
   Server,
@@ -22,14 +21,17 @@ import {
   BarChart3,
   FileCode,
   Globe,
-  SlidersHorizontal,
   Lock,
+  Cpu,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useGateway } from "@/contexts/GatewayContext";
-import { useMemo } from "react";
+import { useUserRole } from "@/contexts/AdvancedFeaturesContext";
+import { RoleSelector } from "@/components/gateway/RoleSelector";
+import { useMemo, useState, useEffect } from "react";
 
 interface SidebarProps {
   open?: boolean;
@@ -37,7 +39,7 @@ interface SidebarProps {
 }
 
 // Reserved paths that are not gateway names
-const RESERVED_PATHS = ["admin", "datasets", "repositories", "applications", "experiments", "dashboard", "catalog", "storage", "groups", "sharing", "account", "api", "auth", "login", "not-found", "no-permissions"];
+const RESERVED_PATHS = ["admin", "datasets", "repositories", "experiments", "dashboard", "catalog", "storage", "groups", "sharing", "account", "api", "auth", "login", "not-found", "no-permissions"];
 
 // Helper to get gateway name from pathname
 function getGatewayNameFromPath(pathname: string): string | null {
@@ -69,6 +71,13 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     accessibleGateways,
     hasNoGatewayAndIsRoot,
   } = useGateway();
+  const { selectedRole } = useUserRole();
+
+  // Track mounted state to prevent hydration mismatch
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const pathGatewayName = useMemo(() => getGatewayNameFromPath(pathname), [pathname]);
   const contextGatewayName = useMemo(() => {
@@ -85,31 +94,39 @@ export function Sidebar({ open, onClose }: SidebarProps) {
   const gatewayPrefix = `/${currentGatewayName}`;
   const gatewayAdminPrefix = `/${currentGatewayName}/admin`;
 
-  const mainNavItems = [
-    { href: `${gatewayPrefix}/dashboard`, label: "Dashboard", icon: LayoutDashboard },
-    { href: `${gatewayPrefix}/catalog`, label: "Catalog", icon: BookOpen },
-    { href: `${gatewayPrefix}/storage`, label: "Storage", icon: HardDrive },
-    { href: `${gatewayPrefix}/groups`, label: "Sharing", icon: UsersRound },
-  ];
+  // Non–gateway-specific items: shown only in system-admin mode under "System" group
+  const systemAdminItems = useMemo(
+    () => [
+      { href: "/admin/gateways", label: "Gateways", icon: Building2 },
+      { href: "/admin/workflows", label: "Workflows", icon: FileCode },
+      { href: "/admin/parsers", label: "Data Parsers", icon: FileCode },
+    ],
+    []
+  );
 
-  const gatewayAdminItems = [
-    { href: `${gatewayAdminPrefix}/applications`, label: "Applications", icon: AppWindow },
-    { href: `${gatewayAdminPrefix}/credentials`, label: "Credentials", icon: Key },
-    { href: `${gatewayAdminPrefix}/resource-access`, label: "Access Control", icon: Lock },
-    { href: `${gatewayAdminPrefix}/preferences`, label: "Preferences", icon: SlidersHorizontal },
-    { href: `${gatewayAdminPrefix}/users`, label: "Users", icon: Users },
-    { href: `${gatewayAdminPrefix}/notices`, label: "Notices", icon: Bell },
-    { href: `${gatewayAdminPrefix}/statistics`, label: "Statistics", icon: BarChart3 },
-    { href: `${gatewayAdminPrefix}/settings`, label: "Settings", icon: Settings },
-  ];
+  // Combine base items with gateway admin items based on selected role (system items are in separate "System" group)
+  const mainNavItems = useMemo(() => {
+    // User-level items (available to all users)
+    const baseNavItems = [
+      { href: `${gatewayPrefix}/dashboard`, label: "Dashboard", icon: LayoutDashboard },
+      { href: `${gatewayPrefix}/catalog`, label: "Catalog", icon: BookOpen },
+      { href: `${gatewayPrefix}/compute`, label: "Compute", icon: Cpu },
+      { href: `${gatewayPrefix}/storage`, label: "Storage", icon: HardDrive },
+      { href: `${gatewayPrefix}/access`, label: "Credentials", icon: Shield },
+      { href: `${gatewayPrefix}/groups`, label: "Sharing", icon: UsersRound },
+    ];
 
-  const systemAdminItems = [
-    { href: "/admin/gateways", label: "Gateways", icon: Building2 },
-    { href: "/admin/compute-resources", label: "Compute Resources", icon: Server },
-    { href: "/admin/storage-resources", label: "Storage Resources", icon: Database },
-    { href: "/admin/workflows", label: "Workflows", icon: FileCode },
-    { href: "/admin/parsers", label: "Data Parsers", icon: FileCode },
-  ];
+    // Admin-only items (only visible when in admin mode)
+    const adminOnlyItems = [
+      { href: `${gatewayAdminPrefix}/users`, label: "Users", icon: Users },
+      { href: `${gatewayAdminPrefix}/notices`, label: "Notices", icon: Bell },
+      { href: `${gatewayAdminPrefix}/statistics`, label: "Statistics", icon: BarChart3 },
+      { href: `${gatewayAdminPrefix}/settings`, label: "Settings", icon: Settings },
+    ];
+
+    // Regular user mode - only base items
+    return { baseNavItems, adminOnlyItems };
+  }, [selectedRole, gatewayPrefix, gatewayAdminPrefix]);
 
   const disabled = hasNoGatewayAndIsRoot;
 
@@ -156,13 +173,40 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     );
   };
 
-  const sidebarContent = (
+  // Skeleton content for initial server render to prevent hydration mismatch
+  const skeletonContent = (
     <div className="flex h-full flex-col">
       <div className="flex h-16 items-center justify-between border-b px-4 md:hidden">
         <span className="font-semibold">Navigation</span>
         <Button variant="ghost" size="icon" onClick={onClose}>
           <X className="h-5 w-5" />
         </Button>
+      </div>
+      <div className="flex-1 overflow-y-auto py-4">
+        <nav className="grid gap-1 px-4">
+          {[...Array(6)].map((_, i) => (
+            <Skeleton key={i} className="h-9 w-full rounded-lg" />
+          ))}
+        </nav>
+      </div>
+      <div className="border-t px-4 py-2">
+        <Skeleton className="h-9 w-full rounded-lg" />
+      </div>
+    </div>
+  );
+
+  const sidebarContent = (
+    <div className="flex h-full flex-col">
+      <div className="flex h-16 items-center justify-between border-b px-4 md:hidden">
+        <span className="font-semibold">Navigation</span>
+        <div className="flex items-center gap-2">
+          {(isRootUser || accessibleGateways.length > 0) && (
+            <RoleSelector className="w-[160px]" />
+          )}
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-5 w-5" />
+          </Button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto py-4">
@@ -175,47 +219,44 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         )}
 
         <nav className="grid gap-1 px-4">
-          {mainNavItems.map((item) => (
+          {mainNavItems.baseNavItems.map((item) => (
             <NavLink key={item.href} {...item} disabled={disabled} />
           ))}
+          {(selectedRole === "gateway-admin" || selectedRole === "system-admin") && (
+            <>
+              <Separator className="my-2" />
+              <p className="mb-1 px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Administration
+              </p>
+              {mainNavItems.adminOnlyItems.map((item) => (
+                <NavLink key={item.href} {...item} disabled={disabled} />
+              ))}
+            </>
+          )}
+          {selectedRole === "system-admin" && (
+            <>
+              <Separator className="my-2" />
+              <p className="mb-1 px-3 py-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                System
+              </p>
+              {systemAdminItems.map((item) => (
+                <NavLink key={item.href} {...item} disabled={disabled} />
+              ))}
+            </>
+          )}
         </nav>
-
-        <Separator className="my-4" />
-
-        <div className="px-4">
-          <h4 className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Gateway Administration
-          </h4>
-          <nav className="grid gap-1">
-            {gatewayAdminItems.map((item) => (
-              <NavLink key={item.href} {...item} disabled={disabled} />
-            ))}
-          </nav>
-        </div>
-
-        {isRootUser && (
-          <>
-            <Separator className="my-4" />
-            <div className="px-4">
-              <h4 className="mb-2 flex items-center gap-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <Globe className="h-3 w-3" />
-                System Administration
-              </h4>
-              <nav className="grid gap-1">
-                {systemAdminItems.map((item) => (
-                  <NavLink key={item.href} {...item} />
-                ))}
-              </nav>
-            </div>
-          </>
-        )}
       </div>
 
-      <div className="border-t p-4">
+      <div className="border-t px-4 py-2">
         <Link
           href="/account"
           onClick={onClose}
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+            pathname === "/account" || pathname.startsWith("/account/")
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
         >
           <Settings className="h-4 w-4" />
           Account
@@ -223,6 +264,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       </div>
     </div>
   );
+
+  // Use skeleton on server render, actual content only after mount
+  const content = mounted ? sidebarContent : skeletonContent;
 
   return (
     <>
@@ -237,16 +281,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Mobile sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 transform border-r bg-background transition-transform duration-200 ease-in-out md:hidden",
+          "fixed inset-y-0 left-0 z-50 h-full w-64 transform border-r bg-background transition-transform duration-200 ease-in-out md:hidden",
           open ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        {sidebarContent}
+        {content}
       </aside>
 
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 border-r bg-background md:block">
-        {sidebarContent}
+      <aside className="hidden h-full w-64 shrink-0 border-r bg-background md:block">
+        {content}
       </aside>
     </>
   );

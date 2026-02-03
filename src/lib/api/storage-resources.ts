@@ -22,4 +22,23 @@ export const storageResourcesApi = {
   delete: async (storageResourceId: string): Promise<void> => {
     return apiClient.delete(`/api/v1/storage-resources/${storageResourceId}`);
   },
+
+  /**
+   * Check if a storage resource exists at higher levels (GATEWAY or GROUP)
+   * and return information about where it's defined.
+   */
+  getHierarchy: async (
+    storageResourceId: string,
+    gatewayId: string
+  ): Promise<{
+    exists: boolean;
+    canCreate: boolean;
+    canOverride: boolean;
+    level: "NONE" | "GATEWAY" | "GROUP";
+    resourceId: string;
+  }> => {
+    return apiClient.get(
+      `/api/v1/storage-resources/${storageResourceId}/hierarchy?gatewayId=${gatewayId}`
+    );
+  },
 };

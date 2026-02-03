@@ -10,8 +10,9 @@ import {
 const BASE_URL = '/api/v1/resource-access';
 
 /**
- * Resource Access API - Manages access grants at GATEWAY, GROUP, USER levels
- * Links resources to credential tokens and controls access
+ * Resource Access API — manages access grants that link credentials to compute or storage resources.
+ * Each grant can include a login username for that resource; credentials do not store login username.
+ * Resource access grants link users/credentials to compute or storage resources with optional login username.
  */
 export const resourceAccessApi = {
   /**
@@ -152,6 +153,25 @@ export const resourceAccessApi = {
   },
 
   /**
+   * Grant access to a storage resource at gateway level
+   */
+  grantGatewayStorageAccess: async (
+    storageResourceId: string,
+    gatewayId: string,
+    credentialToken?: string
+  ): Promise<ResourceAccess> => {
+    return resourceAccessApi.createAccessGrant({
+      resourceType: PreferenceResourceType.STORAGE,
+      resourceId: storageResourceId,
+      ownerId: gatewayId,
+      ownerType: PreferenceLevel.GATEWAY,
+      gatewayId,
+      credentialToken,
+      enabled: true,
+    });
+  },
+
+  /**
    * Grant access to a compute resource at group level
    */
   grantGroupComputeAccess: async (
@@ -209,5 +229,50 @@ export const resourceAccessApi = {
     credentialToken: string
   ): Promise<ResourceAccess> => {
     return resourceAccessApi.updateAccessGrant(id, { credentialToken });
+  },
+
+  /**
+   * Get unified access control view with credentials and their associated resources
+   */
+  getAccessControl: async (
+    gatewayId: string,
+    userId?: string
+  ): Promise<{
+    credentials: Array<{
+      token: string;
+      name?: string;
+      username: string;
+      type: string;
+      description: string;
+      persistedTime: number;
+      ownership: "OWNED" | "INHERITED";
+      source: "USER" | "GROUP" | "GATEWAY";
+      sourceId: string;
+      computeResources: Array<{ resourceId: string; loginUsername: string }>;
+      storageResources: Array<{ resourceId: string; loginUsername: string }>;
+    }>;
+  }> => {
+    const params = new URLSearchParams({ gatewayId });
+    if (userId) params.append("userId", userId);
+    return apiClient.get(`${BASE_URL}/access-control?${params}`);
+  },
+
+  /**
+   * Debug endpoint: returns gatewayId, userId, airavataInternalUserId, ownedTokenIds, ownedCount.
+   * Use to verify DB storage and API output when credentials don’t appear.
+   */
+  getAccessControlDebug: async (
+    gatewayId: string,
+    userId: string
+  ): Promise<{
+    gatewayId: string;
+    userId: string;
+    airavataInternalUserId: string;
+    ownedTokenIds: string[];
+    ownedCount: number;
+    ownedError?: string;
+  }> => {
+    const params = new URLSearchParams({ gatewayId, userId });
+    return apiClient.get(`${BASE_URL}/access-control/debug?${params}`);
   },
 };

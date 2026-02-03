@@ -20,7 +20,7 @@ export default function GatewayLayout({
 
   // Set the gateway context based on the route
   useEffect(() => {
-    const gatewayId = getGatewayIdFromName(gatewayName, accessibleGateways, getGatewayName);
+    const gatewayId = getGatewayIdFromName(gatewayName, accessibleGateways);
     if (gatewayId) {
       setSelectedGatewayId(gatewayId);
     }

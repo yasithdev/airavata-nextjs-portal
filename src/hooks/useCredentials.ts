@@ -2,17 +2,19 @@
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useGateway } from "@/contexts/GatewayContext";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 import { credentialsApi, type SSHCredential, type PasswordCredential } from "@/lib/api/credentials";
 import { applicationsApi } from "@/lib/api/applications";
 
 export function useCredentials() {
   const { effectiveGatewayId } = useGateway();
-  const gatewayId = effectiveGatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = effectiveGatewayId || defaultGatewayId;
 
   return useQuery({
     queryKey: ["credentials", gatewayId],
     queryFn: () => credentialsApi.list(gatewayId),
-    enabled: !!effectiveGatewayId,
+    enabled: !!gatewayId,
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -41,7 +43,8 @@ export function useCreatePasswordCredential() {
 
 export function useDeleteCredential() {
   const { selectedGatewayId } = useGateway();
-  const gatewayId = selectedGatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = selectedGatewayId || defaultGatewayId;
   const queryClient = useQueryClient();
 
   return useMutation({

@@ -27,7 +27,7 @@ export default function ApplicationInterfacePage() {
       <div className="flex flex-col items-center justify-center py-16">
         <h2 className="text-xl font-semibold">Application interface not found</h2>
         <Button asChild className="mt-4">
-          <Link href="/admin/applications">Back to Applications</Link>
+          <Link href={`/catalog/APPLICATION/${appId}`}>Back to Application</Link>
         </Button>
       </div>
     );
@@ -37,7 +37,7 @@ export default function ApplicationInterfacePage() {
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
-          <Link href="/admin/applications">
+          <Link href={`/catalog/APPLICATION/${appId}`}>
             <ArrowLeft className="h-5 w-5" />
           </Link>
         </Button>

@@ -10,9 +10,11 @@ import { ResourceType } from "@/types/catalog";
 
 interface Props {
   resource: CatalogResource;
+  /** When false, do not render the page title/description block (used when the page shows its own header with back button). Default true. */
+  showHeader?: boolean;
 }
 
-export function ResourceDetail({ resource }: Props) {
+export function ResourceDetail({ resource, showHeader = true }: Props) {
   const renderTypeSpecificDetails = () => {
     switch (resource.type) {
       case ResourceType.DATASET:
@@ -142,20 +144,22 @@ export function ResourceDetail({ resource }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h1 className="text-3xl font-bold tracking-tight">{resource.name}</h1>
-            <Badge>{resource.type}</Badge>
-            <Badge variant="outline">{resource.status}</Badge>
+      {showHeader && (
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold tracking-tight">{resource.name}</h1>
+              <Badge>{resource.type}</Badge>
+              <Badge variant="outline">{resource.status}</Badge>
+            </div>
+            <p className="text-muted-foreground">{resource.description}</p>
           </div>
-          <p className="text-muted-foreground">{resource.description}</p>
+          <Button variant="outline" size="sm">
+            <Star className="mr-2 h-4 w-4" />
+            Star
+          </Button>
         </div>
-        <Button variant="outline" size="sm">
-          <Star className="mr-2 h-4 w-4" />
-          Star
-        </Button>
-      </div>
+      )}
 
       {resource.headerImage && (
         <Card>

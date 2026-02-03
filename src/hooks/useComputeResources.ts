@@ -26,6 +26,7 @@ export function useCreateComputeResource() {
     mutationFn: (resource: Partial<ComputeResourceDescription>) => computeResourcesApi.create(resource),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["compute-resources"] });
+      queryClient.invalidateQueries({ queryKey: ["computeResources"] });
     },
   });
 }
@@ -44,6 +45,7 @@ export function useUpdateComputeResource() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["compute-resources"] });
       queryClient.invalidateQueries({ queryKey: ["compute-resources", variables.computeResourceId] });
+      queryClient.invalidateQueries({ queryKey: ["computeResources"] });
     },
   });
 }

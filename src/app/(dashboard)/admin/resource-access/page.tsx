@@ -74,6 +74,7 @@ export default function ResourceAccessPage() {
     enabled: true,
     resourceType: PreferenceResourceType.COMPUTE,
   });
+  const [newGrantLoginUsername, setNewGrantLoginUsername] = useState('');
 
   // Get accessible gateway IDs
   const accessibleGatewayIds = useMemo(() => {
@@ -165,6 +166,7 @@ export default function ResourceAccessPage() {
         enabled: true,
         resourceType: PreferenceResourceType.COMPUTE,
       });
+      setNewGrantLoginUsername('');
     },
     onError: (error: unknown) => {
       const errorMessage = error instanceof Error ? error.message : 'Failed to create access grant';
@@ -265,6 +267,7 @@ export default function ResourceAccessPage() {
       ownerType: newGrant.ownerType,
       gatewayId: effectiveGatewayId,
       credentialToken: newGrant.credentialToken,
+      loginUsername: newGrantLoginUsername.trim() || undefined,
       enabled: newGrant.enabled ?? true,
     });
   };
@@ -399,6 +402,15 @@ export default function ResourceAccessPage() {
               </Tabs>
 
               <div className="space-y-2">
+                <Label>Login username (for this resource)</Label>
+                <Input
+                  placeholder="e.g. myuser"
+                  value={newGrantLoginUsername}
+                  onChange={(e) => setNewGrantLoginUsername(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">SSH/login username on the resource. Required for testing connection.</p>
+              </div>
+              <div className="space-y-2">
                 <Label>Level <span className="text-destructive">*</span></Label>
                 <Select
                   value={newGrant.ownerType}
@@ -480,11 +492,11 @@ export default function ResourceAccessPage() {
                         No credentials available. Please create a credential first.
                       </div>
                     ) : (
-                      credentials.map((cred: { token: string; username?: string; description?: string }) => (
+                      credentials.map((cred: { token: string; username?: string | null; description?: string; name?: string }) => (
                         <SelectItem key={cred.token} value={cred.token}>
                           <div className="flex items-center gap-2">
                             <Key className="h-3 w-3" />
-                            {cred.username || cred.description || cred.token.substring(0, 8)}
+                            {cred.name || cred.description || cred.username || cred.token.substring(0, 8)}
                           </div>
                         </SelectItem>
                       ))
@@ -576,9 +588,9 @@ export default function ResourceAccessPage() {
                             <SelectValue placeholder="No credential" />
                           </SelectTrigger>
                           <SelectContent>
-                            {credentials.map((cred: { token: string; username?: string }) => (
+                            {credentials.map((cred: { token: string; username?: string | null; name?: string; description?: string }) => (
                               <SelectItem key={cred.token} value={cred.token}>
-                                {cred.username || cred.token.substring(0, 8)}
+                                {cred.name || cred.description || cred.username || cred.token.substring(0, 8)}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -668,9 +680,9 @@ export default function ResourceAccessPage() {
                             <SelectValue placeholder="No credential" />
                           </SelectTrigger>
                           <SelectContent>
-                            {credentials.map((cred: { token: string; username?: string }) => (
+                            {credentials.map((cred: { token: string; username?: string | null; name?: string; description?: string }) => (
                               <SelectItem key={cred.token} value={cred.token}>
-                                {cred.username || cred.token.substring(0, 8)}
+                                {cred.name || cred.description || cred.username || cred.token.substring(0, 8)}
                               </SelectItem>
                             ))}
                           </SelectContent>

@@ -2,12 +2,13 @@
 
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Database } from "lucide-react";
+import { ArrowLeft, Database, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { storageResourcesApi } from "@/lib/api/storage-resources";
+import { toast } from "@/hooks/useToast";
 
 export default function StorageResourceDetailPage() {
   const params = useParams();
@@ -64,12 +65,23 @@ export default function StorageResourceDetailPage() {
         <CardContent>
           <div className="space-y-2">
             <div>
-              <p className="text-sm text-muted-foreground">Resource ID</p>
-              <p className="font-mono text-sm">{id}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Resource Name</p>
-              <p className="font-medium">{resourceName}</p>
+              <p className="text-sm text-muted-foreground mb-1">Host</p>
+              <div className="flex items-center gap-2">
+                <p className="font-medium">{resourceName}</p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(id);
+                    toast({ title: "Copied", description: "Resource ID copied to clipboard." });
+                  }}
+                  title="Copy resource ID"
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>

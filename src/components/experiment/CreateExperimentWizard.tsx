@@ -13,6 +13,7 @@ import type { ExperimentModel, ApplicationInterfaceDescription, InputDataObjectT
 import { ExperimentType } from "@/types";
 import { toast } from "@/hooks/useToast";
 import { getExperimentPermalink } from "@/lib/permalink";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 
 interface WizardData {
   projectId?: string;
@@ -46,6 +47,7 @@ export function CreateExperimentWizard({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { data: session } = useSession();
+  const { defaultGatewayId } = usePortalConfig();
   const [currentStep, setCurrentStep] = useState(1);
   
   // Get appId from URL if present
@@ -110,7 +112,7 @@ export function CreateExperimentWizard({
 
   const handleSubmit = async (launchImmediately: boolean) => {
     try {
-      const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+      const gatewayId = session?.user?.gatewayId || defaultGatewayId;
       const userName = session?.user?.email || "admin";
 
       if (!wizardData.projectId) {

@@ -23,8 +23,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useCredentials } from "@/hooks/useCredentials";
 import { connectivityApi } from "@/lib/api/connectivity";
-import { credentialsApi } from "@/lib/api/credentials";
 import { useGateway } from "@/contexts/GatewayContext";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 import type { ConnectivityTestResult } from "@/lib/api/connectivity";
 
 interface TestConnectionModalProps {
@@ -33,6 +33,8 @@ interface TestConnectionModalProps {
   resourceType: "compute" | "storage";
   hostname: string;
   port?: number;
+  /** When provided (compute only), enables "Fetch Cluster Info" and shows partitions/accounts */
+  computeResourceId?: string;
 }
 
 type TestStatus = "idle" | "testing" | "success" | "error";
@@ -43,17 +45,27 @@ export function TestConnectionModal({
   resourceType,
   hostname,
   port = 22,
+  computeResourceId,
 }: TestConnectionModalProps) {
   const { data: credentials, isLoading: credentialsLoading } = useCredentials();
   const { selectedGatewayId } = useGateway();
-  const gatewayId = selectedGatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
-  
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = selectedGatewayId || defaultGatewayId;
+
   const [selectedCredentialToken, setSelectedCredentialToken] = useState<string>("");
+  const [loginUsername, setLoginUsername] = useState<string>("");
   const [testStatus, setTestStatus] = useState<TestStatus>("idle");
   const [testResult, setTestResult] = useState<ConnectivityTestResult | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [clusterInfoResult, setClusterInfoResult] = useState<{
+    partitions: { partitionName: string; nodeCount: number; maxCpusPerNode: number; maxGpusPerNode: number; accounts?: string[] }[];
+    accounts: string[];
+  } | null>(null);
+  const [clusterInfoStatus, setClusterInfoStatus] = useState<"idle" | "fetching" | "success" | "error">("idle");
+  const [clusterInfoError, setClusterInfoError] = useState<string>("");
 
   const sshCredentials = credentials?.filter((c) => c.type === "SSH") || [];
+  const canFetchClusterInfo = resourceType === "compute" && !!computeResourceId && !!selectedCredentialToken && !!hostname && !!loginUsername.trim();
 
   const handleTest = async () => {
     if (!selectedCredentialToken) return;
@@ -63,19 +75,11 @@ export function TestConnectionModal({
     setErrorMessage("");
 
     try {
-      // Get the full SSH credential details (including private key)
-      const credential = await credentialsApi.getSSH(selectedCredentialToken, gatewayId);
-      
-      if (!credential) {
-        throw new Error("Failed to retrieve credential details");
-      }
-
-      // Test SSH connection
-      const result = await connectivityApi.testSSH({
-        host: hostname,
-        port: port,
-        username: credential.username,
-        privateKey: credential.privateKey,
+      const result = await connectivityApi.validateSSH({
+        credentialToken: selectedCredentialToken,
+        hostname,
+        port,
+        gatewayId,
       });
 
       setTestResult(result);
@@ -86,11 +90,41 @@ export function TestConnectionModal({
     }
   };
 
+  const handleFetchClusterInfo = async () => {
+    if (!selectedCredentialToken || !computeResourceId || !hostname || !gatewayId) return;
+
+    setClusterInfoStatus("fetching");
+    setClusterInfoResult(null);
+
+    try {
+      const { clusterInfoApi: clusterApi } = await import("@/lib/api/clusterInfo");
+      const info = await clusterApi.fetch({
+        credentialToken: selectedCredentialToken,
+        computeResourceId,
+        hostname,
+        port,
+        gatewayId,
+      });
+      setClusterInfoResult({
+        partitions: info.partitions ?? [],
+        accounts: info.accounts ?? [],
+      });
+      setClusterInfoStatus("success");
+    } catch (error) {
+      setClusterInfoStatus("error");
+      setClusterInfoError(error instanceof Error ? error.message : "Failed to fetch cluster info");
+    }
+  };
+
   const handleClose = () => {
     setSelectedCredentialToken("");
+    setLoginUsername("");
     setTestStatus("idle");
     setTestResult(null);
     setErrorMessage("");
+    setClusterInfoResult(null);
+    setClusterInfoStatus("idle");
+    setClusterInfoError("");
     onOpenChange(false);
   };
 
@@ -179,10 +213,10 @@ export function TestConnectionModal({
                     <SelectItem key={cred.token} value={cred.token}>
                       <div className="flex items-center gap-2">
                         <Key className="h-4 w-4" />
-                        <span>{cred.username}</span>
-                        {cred.description && (
+                        <span>{cred.name || cred.description || cred.token.substring(0, 12)}</span>
+                        {(cred.name || cred.description) && (
                           <span className="text-muted-foreground">
-                            - {cred.description}
+                            - {cred.name || cred.description}
                           </span>
                         )}
                       </div>
@@ -224,12 +258,15 @@ export function TestConnectionModal({
                         {testResult.details}
                       </p>
                     )}
-                    {testResult.authentication && (
+                    {(testResult.auth_validated ?? testResult.authentication) && (
                       <div className="mt-2">
                         <Badge variant="outline">
-                          Auth: {testResult.authentication}
+                          Auth: {testResult.auth_validated ? "Validated" : testResult.authentication ?? "—"}
                         </Badge>
                       </div>
+                    )}
+                    {testResult.username && (
+                      <p className="mt-1 text-xs">User: {testResult.username}</p>
                     )}
                   </div>
                 )}
@@ -240,6 +277,59 @@ export function TestConnectionModal({
               </div>
             </CardContent>
           </Card>
+
+          {/* Fetch Cluster Info (compute only when computeResourceId provided) */}
+          {canFetchClusterInfo && (
+            <div className="space-y-2">
+              <Label>Cluster Info (SLURM)</Label>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleFetchClusterInfo}
+                disabled={clusterInfoStatus === "fetching" || testStatus === "testing"}
+              >
+                {clusterInfoStatus === "fetching" ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : null}
+                Fetch Cluster Info
+              </Button>
+              {clusterInfoResult && clusterInfoStatus === "success" && (
+                <div className="rounded border p-3 text-sm space-y-2">
+                  {clusterInfoResult.partitions.length > 0 && (
+                    <div>
+                      <p className="font-medium text-muted-foreground mb-1">Partitions</p>
+                      <ul className="list-disc list-inside space-y-0.5">
+                        {clusterInfoResult.partitions.slice(0, 10).map((p) => (
+                          <li key={p.partitionName}>
+                            {p.partitionName}: {p.nodeCount} nodes, {p.maxCpusPerNode} CPUs/node
+                            {p.maxGpusPerNode > 0 ? `, ${p.maxGpusPerNode} GPUs/node` : ""}
+                          </li>
+                        ))}
+                        {clusterInfoResult.partitions.length > 10 && (
+                          <li className="text-muted-foreground">… and {clusterInfoResult.partitions.length - 10} more</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+                  {clusterInfoResult.accounts.length > 0 && (
+                    <div>
+                      <p className="font-medium text-muted-foreground mb-1">Accounts</p>
+                      <div className="flex flex-wrap gap-1">
+                        {clusterInfoResult.accounts.map((a) => (
+                          <Badge key={a} variant="secondary" className="font-mono text-xs">
+                            {a}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              {clusterInfoStatus === "error" && clusterInfoError && (
+                <p className="text-sm text-red-600">{clusterInfoError}</p>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
@@ -248,7 +338,7 @@ export function TestConnectionModal({
           </Button>
           <Button
             onClick={handleTest}
-            disabled={!selectedCredentialToken || testStatus === "testing" || sshCredentials.length === 0}
+            disabled={!selectedCredentialToken || !loginUsername.trim() || testStatus === "testing" || sshCredentials.length === 0}
           >
             {testStatus === "testing" ? (
               <>

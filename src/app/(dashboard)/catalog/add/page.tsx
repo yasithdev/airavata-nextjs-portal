@@ -1,16 +1,21 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CatalogResourceForm } from "@/components/catalog/CatalogResourceForm";
 import { useCreateResource } from "@/hooks";
 import { toast } from "@/hooks/useToast";
+import { ResourceType } from "@/types/catalog";
 import type { CatalogResource } from "@/types/catalog";
+import { Skeleton } from "@/components/ui/skeleton";
 
-export default function AddCatalogResourcePage() {
+function AddCatalogResourceContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const typeParam = searchParams.get("type");
   const createResource = useCreateResource();
 
   const handleSubmit = async (resource: Partial<CatalogResource>) => {
@@ -35,7 +40,7 @@ export default function AddCatalogResourcePage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
           <Link href="/catalog">
@@ -51,10 +56,24 @@ export default function AddCatalogResourcePage() {
       </div>
 
       <CatalogResourceForm
+        resource={typeParam ? { type: typeParam as ResourceType } as CatalogResource : undefined}
         onSubmit={handleSubmit}
         onCancel={() => router.push("/catalog")}
         isLoading={createResource.isPending}
       />
     </div>
+  );
+}
+
+export default function AddCatalogResourcePage() {
+  return (
+    <Suspense fallback={
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-64" />
+        <Skeleton className="h-96 w-full" />
+      </div>
+    }>
+      <AddCatalogResourceContent />
+    </Suspense>
   );
 }

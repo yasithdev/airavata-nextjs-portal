@@ -8,9 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import type { ApplicationModule, InputDataObjectType, OutputDataObjectType } from "@/types";
-import { DataType } from "@/types";
+import { DataType, DEFAULT_SYSTEM_INPUT, DEFAULT_SYSTEM_OUTPUTS, isSystemInputName, isSystemOutputName } from "@/types";
 
 interface CreateApplicationWizardProps {
   gatewayId: string;
@@ -39,22 +40,23 @@ export function CreateApplicationWizard({
     // Interface fields (derived from module name by default)
     applicationName: "",
     applicationDescription: "",
-    applicationInputs: [] as InputDataObjectType[],
-    applicationOutputs: [] as OutputDataObjectType[],
+    applicationInputs: [{ ...DEFAULT_SYSTEM_INPUT }] as InputDataObjectType[],
+    applicationOutputs: DEFAULT_SYSTEM_OUTPUTS.map((o) => ({ ...o })) as OutputDataObjectType[],
   });
 
   // New input/output state for adding
   const [newInput, setNewInput] = useState<Partial<InputDataObjectType>>({
     name: "",
     type: DataType.STRING,
+    applicationArgument: "",
     isRequired: false,
-    userFriendlyDescription: "",
   });
 
   const [newOutput, setNewOutput] = useState<Partial<OutputDataObjectType>>({
     name: "",
     type: DataType.STRING,
-    metaData: "",
+    applicationArgument: "",
+    isRequired: false,
   });
 
   const isLoading = parentIsLoading || isSubmitting;
@@ -73,17 +75,26 @@ export function CreateApplicationWizard({
 
   const addInput = () => {
     if (!newInput.name) return;
+    const name = (newInput.name ?? "").trim().toUpperCase();
+    if (isSystemInputName(name)) return; // avoid duplicate STDIN
     setFormData({
       ...formData,
       applicationInputs: [
         ...formData.applicationInputs,
-        { ...newInput, inputOrder: formData.applicationInputs.length } as InputDataObjectType,
+        {
+          name: newInput.name ?? "",
+          type: newInput.type ?? DataType.STRING,
+          applicationArgument: newInput.applicationArgument ?? "",
+          isRequired: newInput.isRequired ?? false,
+        } as InputDataObjectType,
       ],
     });
-    setNewInput({ name: "", type: DataType.STRING, isRequired: false, userFriendlyDescription: "" });
+    setNewInput({ name: "", type: DataType.STRING, applicationArgument: "", isRequired: false });
   };
 
   const removeInput = (index: number) => {
+    const input = formData.applicationInputs[index];
+    if (input && isSystemInputName(input.name)) return;
     setFormData({
       ...formData,
       applicationInputs: formData.applicationInputs.filter((_, i) => i !== index),
@@ -92,14 +103,26 @@ export function CreateApplicationWizard({
 
   const addOutput = () => {
     if (!newOutput.name) return;
+    const name = (newOutput.name ?? "").trim().toUpperCase();
+    if (isSystemOutputName(name)) return; // avoid duplicate STDOUT/STDERR
     setFormData({
       ...formData,
-      applicationOutputs: [...formData.applicationOutputs, newOutput as OutputDataObjectType],
+      applicationOutputs: [
+        ...formData.applicationOutputs,
+        {
+          name: newOutput.name ?? "",
+          type: newOutput.type ?? DataType.STRING,
+          applicationArgument: newOutput.applicationArgument ?? "",
+          isRequired: newOutput.isRequired ?? false,
+        } as OutputDataObjectType,
+      ],
     });
-    setNewOutput({ name: "", type: DataType.STRING, metaData: "" });
+    setNewOutput({ name: "", type: DataType.STRING, applicationArgument: "", isRequired: false });
   };
 
   const removeOutput = (index: number) => {
+    const output = formData.applicationOutputs[index];
+    if (output && isSystemOutputName(output.name)) return;
     setFormData({
       ...formData,
       applicationOutputs: formData.applicationOutputs.filter((_, i) => i !== index),
@@ -128,6 +151,7 @@ export function CreateApplicationWizard({
       });
 
       // Step 2: Create the interface with the module ID
+      // Backend will automatically add STDIN, STDOUT, and STDERR
       await onCreateInterface({
         applicationName: formData.applicationName,
         applicationDescription: formData.applicationDescription,
@@ -197,10 +221,10 @@ export function CreateApplicationWizard({
         </CardContent>
       </Card>
 
-      {/* Input Fields */}
-      <Card>
+      {/* Inputs */}
+        <Card>
         <CardHeader>
-          <CardTitle>Input Fields</CardTitle>
+          <CardTitle>Inputs</CardTitle>
           <CardDescription>Define the inputs required by the application</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -231,29 +255,34 @@ export function CreateApplicationWizard({
                     <SelectItem value={DataType.INTEGER}>Integer</SelectItem>
                     <SelectItem value={DataType.FLOAT}>Float</SelectItem>
                     <SelectItem value={DataType.URI}>File/URI</SelectItem>
+                    <SelectItem value={DataType.STDIN}>Stdin</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Description</Label>
+                <Label className="text-xs">CLI Args</Label>
                 <Input
-                  value={newInput.userFriendlyDescription || ""}
-                  onChange={(e) => setNewInput({ ...newInput, userFriendlyDescription: e.target.value })}
-                  placeholder="Description"
-                  className="h-9"
+                  value={newInput.applicationArgument || ""}
+                  onChange={(e) => setNewInput({ ...newInput, applicationArgument: e.target.value })}
+                  placeholder="e.g. --input"
+                  className="h-9 font-mono text-sm"
                   disabled={isLoading}
                 />
               </div>
               <div className="flex items-end gap-2">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="required"
-                    checked={newInput.isRequired}
-                    onCheckedChange={(checked) => setNewInput({ ...newInput, isRequired: checked as boolean })}
-                    disabled={isLoading}
-                  />
-                  <Label htmlFor="required" className="text-xs">Required</Label>
-                </div>
+                <Button
+                  type="button"
+                  variant={newInput.isRequired ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-9 min-w-[5.5rem] text-xs",
+                    newInput.isRequired ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-background border border-input hover:bg-muted/50"
+                  )}
+                  onClick={() => setNewInput({ ...newInput, isRequired: !newInput.isRequired })}
+                  disabled={isLoading}
+                >
+                  {newInput.isRequired ? "Required" : "Optional"}
+                </Button>
                 <Button type="button" size="sm" onClick={addInput} disabled={!newInput.name || isLoading}>
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -263,21 +292,38 @@ export function CreateApplicationWizard({
 
           {formData.applicationInputs.length > 0 ? (
             <div className="space-y-2">
-              {formData.applicationInputs.map((input, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex-1 grid grid-cols-4 gap-4 text-sm">
-                    <span className="font-medium">{input.name}</span>
-                    <span className="text-muted-foreground">{input.type}</span>
-                    <span className="text-muted-foreground truncate">{input.userFriendlyDescription || "-"}</span>
-                    <span className={input.isRequired ? "text-orange-600" : "text-muted-foreground"}>
-                      {input.isRequired ? "Required" : "Optional"}
-                    </span>
+              {formData.applicationInputs.map((input, idx) => {
+                const isSystem = isSystemInputName(input.name);
+                return (
+                  <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1 grid grid-cols-4 gap-4 text-sm items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{input.name}</span>
+                        {isSystem && <Badge variant="secondary" className="text-xs">System</Badge>}
+                      </div>
+                      <span className="text-muted-foreground">{input.type}</span>
+                      <span className="text-muted-foreground font-mono truncate">{input.applicationArgument || "—"}</span>
+                      <Button
+                        type="button"
+                        variant={input.isRequired ? "default" : "outline"}
+                        size="sm"
+                        className={cn(
+                          "h-8 min-w-[5.5rem] text-xs pointer-events-none",
+                          input.isRequired ? "bg-primary text-primary-foreground" : "bg-background border border-input"
+                        )}
+                        disabled
+                      >
+                        {input.isRequired ? "Required" : "Optional"}
+                      </Button>
+                    </div>
+                    {!isSystem && (
+                      <Button type="button" variant="ghost" size="sm" onClick={() => removeInput(idx)} disabled={isLoading}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
                   </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeInput(idx)} disabled={isLoading}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-4">
@@ -287,10 +333,10 @@ export function CreateApplicationWizard({
         </CardContent>
       </Card>
 
-      {/* Output Fields */}
-      <Card>
+      {/* Outputs */}
+        <Card>
         <CardHeader>
-          <CardTitle>Output Fields</CardTitle>
+          <CardTitle>Outputs</CardTitle>
           <CardDescription>Define the outputs produced by the application</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -325,16 +371,29 @@ export function CreateApplicationWizard({
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Description</Label>
+                <Label className="text-xs">CLI Args</Label>
                 <Input
-                  value={newOutput.metaData || ""}
-                  onChange={(e) => setNewOutput({ ...newOutput, metaData: e.target.value })}
-                  placeholder="Description"
-                  className="h-9"
+                  value={newOutput.applicationArgument || ""}
+                  onChange={(e) => setNewOutput({ ...newOutput, applicationArgument: e.target.value })}
+                  placeholder="e.g. --output"
+                  className="h-9 font-mono text-sm"
                   disabled={isLoading}
                 />
               </div>
-              <div className="flex items-end">
+              <div className="flex items-end gap-2">
+                <Button
+                  type="button"
+                  variant={newOutput.isRequired ? "default" : "outline"}
+                  size="sm"
+                  className={cn(
+                    "h-9 min-w-[5.5rem] text-xs",
+                    newOutput.isRequired ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-background border border-input hover:bg-muted/50"
+                  )}
+                  onClick={() => setNewOutput({ ...newOutput, isRequired: !newOutput.isRequired })}
+                  disabled={isLoading}
+                >
+                  {newOutput.isRequired ? "Required" : "Optional"}
+                </Button>
                 <Button type="button" size="sm" onClick={addOutput} disabled={!newOutput.name || isLoading}>
                   <Plus className="h-4 w-4" />
                 </Button>
@@ -344,22 +403,48 @@ export function CreateApplicationWizard({
 
           {formData.applicationOutputs.length > 0 ? (
             <div className="space-y-2">
-              {formData.applicationOutputs.map((output, idx) => (
-                <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div className="flex-1 grid grid-cols-3 gap-4 text-sm">
-                    <span className="font-medium">{output.name}</span>
-                    <span className="text-muted-foreground">{output.type}</span>
-                    <span className="text-muted-foreground truncate">{output.metaData || "-"}</span>
+              {formData.applicationOutputs.map((output, idx) => {
+                const isSystem = isSystemOutputName(output.name);
+                return (
+                  <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex-1 grid grid-cols-4 gap-4 text-sm items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{output.name}</span>
+                        {isSystem && <Badge variant="secondary" className="text-xs">System</Badge>}
+                      </div>
+                      <span className="text-muted-foreground">{output.type}</span>
+                      <span className="text-muted-foreground font-mono truncate">{output.applicationArgument || "—"}</span>
+                      <Button
+                        type="button"
+                        variant={output.isRequired ? "default" : "outline"}
+                        size="sm"
+                        className={cn(
+                          "h-8 min-w-[5.5rem] text-xs pointer-events-none",
+                          output.isRequired ? "bg-primary text-primary-foreground" : "bg-background border border-input"
+                        )}
+                        disabled
+                      >
+                        {output.isRequired ? "Required" : "Optional"}
+                      </Button>
+                    </div>
+                    {!isSystem && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => removeOutput(idx)} 
+                        disabled={isLoading}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    )}
                   </div>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => removeOutput(idx)} disabled={isLoading}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-4">
-              No outputs defined yet. Add outputs above.
+              No outputs defined yet. Add outputs above. STDIN, STDOUT, and STDERR are always present.
             </p>
           )}
         </CardContent>

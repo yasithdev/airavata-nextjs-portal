@@ -10,16 +10,19 @@ export function useCatalogResources(filters?: ResourceFilters) {
     queryKey: ["catalog-resources", filters],
     queryFn: async () => {
       try {
-        const resources = await catalogApi.listPublic(filters);
+        const resources = await catalogApi.listPublic(filters || {});
         return resources || [];
       } catch (error) {
         console.error("Error fetching catalog resources:", error);
-        return [];
+        // Re-throw the error so React Query can handle it properly
+        throw error;
       }
     },
-    enabled: true,
+    enabled: filters !== undefined,
     retry: 1,
     staleTime: 30 * 1000, // 30 seconds
+    refetchOnWindowFocus: false,
+    gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)
   });
 }
 

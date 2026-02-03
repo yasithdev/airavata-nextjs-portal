@@ -8,7 +8,7 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Server, ShieldCheck } from "lucide-react";
+import { Building2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export function GatewaySelector() {
@@ -43,8 +43,8 @@ export function GatewaySelector() {
     return null;
   }
 
-  const GatewayIcon = isRootUser ? ShieldCheck : Server;
-  const iconColorClass = isRootUser ? "text-amber-500" : "text-muted-foreground";
+  const GatewayIcon = Building2;
+  const iconColorClass = "text-primary";
 
   return (
     <Select
@@ -63,11 +63,7 @@ export function GatewaySelector() {
         {accessibleGateways.map((gateway) => (
           <SelectItem key={gateway.gatewayId} value={gateway.gatewayId}>
             <div className="inline-flex items-center gap-2">
-              {isRootUser ? (
-                <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
-              ) : (
-                <Server className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground" />
-              )}
+              <Building2 className="h-3.5 w-3.5 flex-shrink-0 text-primary" />
               <span>{gateway.gatewayName || gateway.gatewayId}</span>
             </div>
           </SelectItem>

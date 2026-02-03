@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode, useCallback 
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import { gatewaysApi } from "@/lib/api/gateways";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 import type { Gateway } from "@/types";
 
 interface GatewayContextType {
@@ -16,6 +17,8 @@ interface GatewayContextType {
   effectiveGatewayId: string | undefined;
   /** True when root user has no gateways – system administration only, rest disabled */
   hasNoGatewayAndIsRoot: boolean;
+  /** True when authenticated and no gateways exist – user must create first gateway before using portal */
+  needsFirstGateway: boolean;
   /** URL for Dashboard links: /<gateway>/dashboard, or /admin/gateways when hasNoGatewayAndIsRoot */
   dashboardHref: string;
 }
@@ -24,6 +27,7 @@ const GatewayContext = createContext<GatewayContextType | undefined>(undefined);
 
 export function GatewayProvider({ children }: { children: ReactNode }) {
   const { data: session } = useSession();
+  const { defaultGatewayId, assumeRootWhenNoGateways } = usePortalConfig();
   const [selectedGatewayId, setSelectedGatewayId] = useState<string | null>(null);
 
   const { data: gateways = [], isLoading } = useQuery({
@@ -33,13 +37,12 @@ export function GatewayProvider({ children }: { children: ReactNode }) {
   });
 
   const isRootFromGateways = gateways.length > 0 && gateways.some((g) => g.gatewayId === "default");
-  /** When there are no gateways, we cannot infer root from the list. Set NEXT_PUBLIC_ASSUME_ROOT_WHEN_NO_GATEWAYS=true to treat as root (system-admin-only mode). */
-  const assumeRootWhenNoGateways =
-    process.env.NEXT_PUBLIC_ASSUME_ROOT_WHEN_NO_GATEWAYS === "true";
+  /** When there are no gateways, we cannot infer root from the list. assumeRootWhenNoGateways from API config treats as root (system-admin-only mode). */
   const isRootUser =
     isRootFromGateways || (gateways.length === 0 && assumeRootWhenNoGateways);
   const effectiveGatewayId = selectedGatewayId || undefined;
   const hasNoGatewayAndIsRoot = gateways.length === 0 && isRootUser;
+  const needsFirstGateway = !!session && !isLoading && gateways.length === 0;
 
   const getGatewayName = useCallback(
     (gatewayId: string): string => {
@@ -52,7 +55,7 @@ export function GatewayProvider({ children }: { children: ReactNode }) {
   const dashboardHref = hasNoGatewayAndIsRoot
     ? "/admin/gateways"
     : selectedGatewayId && gateways.length > 0
-      ? `/${getGatewayName(selectedGatewayId)}/dashboard`
+      ? `/${selectedGatewayId}/dashboard`
       : "/default/dashboard";
 
   useEffect(() => {
@@ -88,6 +91,7 @@ export function GatewayProvider({ children }: { children: ReactNode }) {
         getGatewayName,
         effectiveGatewayId,
         hasNoGatewayAndIsRoot,
+        needsFirstGateway,
         dashboardHref,
       }}
     >

@@ -25,13 +25,15 @@ import { applicationsApi, apiClient } from "@/lib/api";
 import { ApplicationDeploymentForm } from "@/components/applications/ApplicationDeploymentForm";
 import { toast } from "@/hooks/useToast";
 import { useGateway } from "@/contexts/GatewayContext";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 import type { ApplicationDeploymentDescription, ApplicationInterfaceDescription } from "@/types";
 
 export default function ApplicationDeploymentsPage() {
   const params = useParams();
   const router = useRouter();
   const { effectiveGatewayId } = useGateway();
-  const gatewayId = effectiveGatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = effectiveGatewayId || defaultGatewayId;
   const appInterfaceId = params.appId as string;
 
   const queryClient = useQueryClient();
@@ -181,7 +183,7 @@ export default function ApplicationDeploymentsPage() {
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/admin/applications">
+            <Link href={`/catalog/APPLICATION/${appInterfaceId}`}>
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
@@ -203,7 +205,7 @@ export default function ApplicationDeploymentsPage() {
                   Try Again
                 </Button>
                 <Button variant="outline" asChild>
-                  <Link href="/admin/applications">Back to Applications</Link>
+                  <Link href={`/catalog/APPLICATION/${appInterfaceId}`}>Back to Application</Link>
                 </Button>
               </div>
             </div>
@@ -219,7 +221,7 @@ export default function ApplicationDeploymentsPage() {
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/admin/applications">
+            <Link href={`/catalog/APPLICATION/${appInterfaceId}`}>
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
@@ -241,7 +243,7 @@ export default function ApplicationDeploymentsPage() {
       <div className="space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/admin/applications">
+            <Link href={`/catalog/APPLICATION/${appInterfaceId}`}>
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
@@ -263,7 +265,7 @@ export default function ApplicationDeploymentsPage() {
                 Deployments require an application module.
               </p>
               <Button variant="outline" className="mt-4" asChild>
-                <Link href="/admin/applications">Back to Applications</Link>
+                <Link href={`/catalog/APPLICATION/${appInterfaceId}`}>Back to Application</Link>
               </Button>
             </div>
           </CardContent>
@@ -277,7 +279,7 @@ export default function ApplicationDeploymentsPage() {
       <div className="space-y-4">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" asChild>
-            <Link href="/admin/applications">
+            <Link href={`/catalog/APPLICATION/${appInterfaceId}`}>
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>

@@ -1,1 +1,1 @@
-export { handlers, auth, signIn, signOut, authConfig } from "../auth";
+export { handlers, auth, signIn, signOut, authConfig, buildKeycloakLogoutUrl } from "../auth";

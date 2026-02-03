@@ -3,11 +3,13 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { useGateway } from "@/contexts/GatewayContext";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 import { usersApi, type User } from "@/lib/api/users";
 
 export function useUsers() {
   const { accessibleGateways, effectiveGatewayId } = useGateway();
-  const gatewayId = effectiveGatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = effectiveGatewayId || defaultGatewayId;
 
   return useQuery({
     queryKey: ["users", gatewayId, accessibleGateways.map((g) => g.gatewayId).join(",")],
@@ -23,20 +25,22 @@ export function useUsers() {
 }
 
 export function useUser(userId: string) {
-  const { data: session } = useSession();
-  const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { effectiveGatewayId } = useGateway();
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = effectiveGatewayId || defaultGatewayId;
 
   return useQuery({
     queryKey: ["user", userId, gatewayId],
     queryFn: () => usersApi.get(userId, gatewayId),
-    enabled: !!userId,
+    enabled: !!userId && !!gatewayId,
   });
 }
 
 export function useUpdateUser() {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
-  const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = session?.user?.gatewayId || defaultGatewayId;
 
   return useMutation({
     mutationFn: ({ userId, user }: { userId: string; user: Partial<User> }) =>
@@ -51,7 +55,8 @@ export function useUpdateUser() {
 export function useEnableUser() {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
-  const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = session?.user?.gatewayId || defaultGatewayId;
 
   return useMutation({
     mutationFn: (userId: string) => usersApi.enable(userId, gatewayId),
@@ -65,7 +70,8 @@ export function useEnableUser() {
 export function useDisableUser() {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
-  const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = session?.user?.gatewayId || defaultGatewayId;
 
   return useMutation({
     mutationFn: (userId: string) => usersApi.disable(userId, gatewayId),
@@ -79,7 +85,8 @@ export function useDisableUser() {
 export function useDeleteUser() {
   const queryClient = useQueryClient();
   const { data: session } = useSession();
-  const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = session?.user?.gatewayId || defaultGatewayId;
 
   return useMutation({
     mutationFn: (userId: string) => usersApi.delete(userId, gatewayId),

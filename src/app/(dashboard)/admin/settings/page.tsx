@@ -9,12 +9,14 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 import { gatewaysApi } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AdminSettingsPage() {
   const { data: session } = useSession();
-  const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = session?.user?.gatewayId || defaultGatewayId;
 
   const { data: gateways, isLoading } = useQuery({
     queryKey: ["gateways"],
@@ -24,7 +26,7 @@ export default function AdminSettingsPage() {
   const currentGateway = gateways?.find((g) => g.gatewayId === gatewayId);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Admin Settings</h1>
         <p className="text-muted-foreground">
@@ -132,7 +134,7 @@ export default function AdminSettingsPage() {
             <div className="grid gap-2">
               <Label>API Base URL</Label>
               <Input
-                value={process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}
+                value="Proxied via this application"
                 disabled
               />
               <p className="text-xs text-muted-foreground">

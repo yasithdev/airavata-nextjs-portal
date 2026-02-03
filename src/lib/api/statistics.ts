@@ -1,74 +1,80 @@
 import { apiClient } from "./client";
-import type { ExperimentModel } from "@/types";
+
+export interface ExperimentSummary {
+  experimentId: string;
+  experimentName: string;
+  projectId: string;
+  gatewayId: string;
+  userName: string;
+  creationTime: number;
+  experimentStatus: string;
+  statusUpdateTime: number;
+  description?: string;
+  executionId?: string;
+  resourceHostId?: string;
+}
 
 export interface ExperimentStatistics {
   total: number;
   byStatus: Record<string, number>;
   byGateway: Record<string, number>;
   byUser: Record<string, number>;
-  recent: ExperimentModel[];
+  recent: ExperimentSummary[];
+  // Raw counts for detailed views
+  completedExperimentCount: number;
+  failedExperimentCount: number;
+  runningExperimentCount: number;
+  createdExperimentCount: number;
+  cancelledExperimentCount: number;
 }
 
 export interface SystemStatistics {
-  totalExperiments: number;
-  totalUsers: number;
   totalGateways: number;
   totalComputeResources: number;
   totalStorageResources: number;
   totalApplications: number;
-  totalProjects: number;
+  totalUsers: number;
 }
 
 export const statisticsApi = {
-  // Aggregate statistics from various endpoints
-  getExperimentStatistics: async (gatewayId?: string): Promise<ExperimentStatistics> => {
-    const url = gatewayId
-      ? `/api/v1/statistics/experiments?gatewayId=${gatewayId}`
-      : "/api/v1/statistics/experiments";
+  /**
+   * Get experiment statistics from the backend.
+   * Returns counts and lists grouped by status (completed, failed, running, created, cancelled).
+   */
+  getExperimentStatistics: async (
+    gatewayId?: string,
+    options?: {
+      fromTime?: number;
+      toTime?: number;
+      userName?: string;
+      applicationName?: string;
+      resourceHostName?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<ExperimentStatistics> => {
+    const params = new URLSearchParams();
+    if (gatewayId) params.append("gatewayId", gatewayId);
+    if (options?.fromTime) params.append("fromTime", options.fromTime.toString());
+    if (options?.toTime) params.append("toTime", options.toTime.toString());
+    if (options?.userName) params.append("userName", options.userName);
+    if (options?.applicationName) params.append("applicationName", options.applicationName);
+    if (options?.resourceHostName) params.append("resourceHostName", options.resourceHostName);
+    if (options?.limit) params.append("limit", options.limit.toString());
+    if (options?.offset) params.append("offset", options.offset.toString());
+
+    const url = `/api/v1/statistics/experiments${params.toString() ? `?${params.toString()}` : ""}`;
     return apiClient.get<ExperimentStatistics>(url);
   },
 
-  getSystemStatistics: async (): Promise<SystemStatistics> => {
-    return apiClient.get<SystemStatistics>("/api/v1/statistics/system");
-  },
-
-  // Alternative: Aggregate from existing endpoints if dedicated stats endpoint doesn't exist
-  aggregateStatistics: async (gatewayId?: string): Promise<ExperimentStatistics> => {
-    try {
-      // Try to get experiments - backend may require userName or projectId
-      // For admin stats, we'll try with just gatewayId, but handle errors gracefully
-      const url = gatewayId ? `/api/v1/experiments?gatewayId=${gatewayId}` : "/api/v1/experiments";
-      const experiments = await apiClient.get<ExperimentModel[]>(url);
-
-      const byStatus: Record<string, number> = {};
-      const byGateway: Record<string, number> = {};
-      const byUser: Record<string, number> = {};
-
-      if (Array.isArray(experiments)) {
-        experiments.forEach((exp) => {
-          const status = exp.experimentStatus?.[0]?.state || "UNKNOWN";
-          byStatus[status] = (byStatus[status] || 0) + 1;
-          byGateway[exp.gatewayId] = (byGateway[exp.gatewayId] || 0) + 1;
-          byUser[exp.userName] = (byUser[exp.userName] || 0) + 1;
-        });
-      }
-
-      return {
-        total: Array.isArray(experiments) ? experiments.length : 0,
-        byStatus,
-        byGateway,
-        byUser,
-        recent: Array.isArray(experiments) ? experiments.slice(0, 10) : [],
-      };
-    } catch (error) {
-      // Return empty stats if fetch fails
-      return {
-        total: 0,
-        byStatus: {},
-        byGateway: {},
-        byUser: {},
-        recent: [],
-      };
-    }
+  /**
+   * Get system-wide statistics including counts of gateways, compute resources,
+   * storage resources, applications, and users.
+   */
+  getSystemStatistics: async (gatewayId?: string): Promise<SystemStatistics> => {
+    const url = gatewayId
+      ? `/api/v1/statistics/system?gatewayId=${gatewayId}`
+      : "/api/v1/statistics/system";
+    return apiClient.get<SystemStatistics>(url);
   },
 };

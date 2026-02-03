@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { Plus, Search, Trash2, Eye, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SearchBar } from "@/components/ui/search-bar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +35,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { usePortalConfig } from "@/contexts/PortalConfigContext";
 import { dataProductsApi } from "@/lib/api";
 import { toast } from "@/hooks/useToast";
 import type { DataProductModel, DataProductType } from "@/types";
@@ -43,8 +45,9 @@ export default function DataProductsPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const queryClient = useQueryClient();
-  const gatewayId = session?.user?.gatewayId || process.env.NEXT_PUBLIC_DEFAULT_GATEWAY_ID || "default";
-  const userId = session?.user?.userName || session?.user?.userId || session?.user?.email || "default-admin";
+  const { defaultGatewayId } = usePortalConfig();
+  const gatewayId = session?.user?.gatewayId || defaultGatewayId;
+  const userId = session?.user?.userName || session?.user?.email || "default-admin";
   
   const [searchQuery, setSearchQuery] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -53,9 +56,12 @@ export default function DataProductsPage() {
   const [newProduct, setNewProduct] = useState<Partial<DataProductModel>>({
     gatewayId,
     ownerName: userId,
+    ownerId: userId,
     productName: "",
     productDescription: "",
     dataProductType: "FILE" as DataProductType,
+    privacy: "PRIVATE",
+    scope: "USER",
   });
 
   const { data: products, isLoading, refetch } = useQuery({
@@ -84,9 +90,12 @@ export default function DataProductsPage() {
       setNewProduct({
         gatewayId,
         ownerName: userId,
+        ownerId: userId,
         productName: "",
         productDescription: "",
         dataProductType: "FILE" as DataProductType,
+        privacy: "PRIVATE",
+        scope: "USER",
       });
     },
     onError: (error: Error) => {
@@ -182,11 +191,12 @@ export default function DataProductsPage() {
         </CardHeader>
         <CardContent>
           <div className="flex gap-2">
-            <Input
+            <SearchBar
               placeholder="Search by product name (leave empty to list all)..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={setSearchQuery}
               onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              wrapperClassName="flex-1"
             />
             <Button onClick={handleSearch}>
               <Search className="mr-2 h-4 w-4" />
@@ -206,6 +216,8 @@ export default function DataProductsPage() {
                 <TableHead>Product Name</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Owner</TableHead>
+                <TableHead>Primary Storage</TableHead>
+                <TableHead>Privacy</TableHead>
                 <TableHead>Size</TableHead>
                 <TableHead>Replicas</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -219,6 +231,16 @@ export default function DataProductsPage() {
                     <Badge variant="secondary">{product.dataProductType}</Badge>
                   </TableCell>
                   <TableCell>{product.ownerName}</TableCell>
+                  <TableCell>
+                    {product.primaryStorageResourceId && product.primaryFilePath
+                      ? `${product.primaryStorageResourceId}: ...${String(product.primaryFilePath).slice(-20)}`
+                      : "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={product.privacy === "PUBLIC" ? "default" : "secondary"}>
+                      {product.privacy ?? "PRIVATE"}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     {product.productSize
                       ? `${(product.productSize / 1024 / 1024).toFixed(2)} MB`
@@ -304,6 +326,52 @@ export default function DataProductsPage() {
                 <option value="COLLECTION">Collection</option>
               </select>
             </div>
+            <div>
+              <label className="text-sm font-medium">Primary Storage Resource ID</label>
+              <Input
+                value={newProduct.primaryStorageResourceId || ""}
+                onChange={(e) => setNewProduct({ ...newProduct, primaryStorageResourceId: e.target.value || undefined })}
+                placeholder="Storage resource where main copy lives"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Primary File Path</label>
+              <Input
+                value={newProduct.primaryFilePath || ""}
+                onChange={(e) => setNewProduct({ ...newProduct, primaryFilePath: e.target.value || undefined })}
+                placeholder="Path on primary storage"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Privacy</label>
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={newProduct.privacy || "PRIVATE"}
+                onChange={(e) => setNewProduct({ ...newProduct, privacy: e.target.value })}
+              >
+                <option value="PRIVATE">Private</option>
+                <option value="PUBLIC">Public</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Scope</label>
+              <select
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={newProduct.scope || "USER"}
+                onChange={(e) => setNewProduct({ ...newProduct, scope: e.target.value })}
+              >
+                <option value="USER">User</option>
+                <option value="GATEWAY">Gateway</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Format</label>
+              <Input
+                value={newProduct.format || ""}
+                onChange={(e) => setNewProduct({ ...newProduct, format: e.target.value || undefined })}
+                placeholder="e.g. CSV, HDF5"
+              />
+            </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
                 Cancel
@@ -332,6 +400,59 @@ export default function DataProductsPage() {
                 <p className="text-sm text-muted-foreground">Type</p>
                 <Badge>{viewingProduct.dataProductType}</Badge>
               </div>
+              {(viewingProduct.primaryStorageResourceId || viewingProduct.primaryFilePath) && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Primary Storage</p>
+                  <Card>
+                    <CardContent className="pt-4">
+                      {viewingProduct.primaryStorageResourceId && (
+                        <p className="font-medium">{viewingProduct.primaryStorageResourceId}</p>
+                      )}
+                      {viewingProduct.primaryFilePath && (
+                        <p className="text-sm text-muted-foreground font-mono">{viewingProduct.primaryFilePath}</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+              {(viewingProduct.privacy || viewingProduct.scope) && (
+                <div className="flex gap-4">
+                  {viewingProduct.privacy && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Privacy</p>
+                      <Badge variant="secondary">{viewingProduct.privacy}</Badge>
+                    </div>
+                  )}
+                  {viewingProduct.scope && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Scope</p>
+                      <Badge variant="secondary">{viewingProduct.scope}</Badge>
+                    </div>
+                  )}
+                </div>
+              )}
+              {viewingProduct.format && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Format</p>
+                  <p>{viewingProduct.format}</p>
+                </div>
+              )}
+              {viewingProduct.authors && viewingProduct.authors.length > 0 && (
+                <div>
+                  <p className="text-sm text-muted-foreground">Authors</p>
+                  <p>{viewingProduct.authors.join(", ")}</p>
+                </div>
+              )}
+              {viewingProduct.tags && viewingProduct.tags.length > 0 && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Tags</p>
+                  <div className="flex flex-wrap gap-1">
+                    {viewingProduct.tags.map((t, i) => (
+                      <Badge key={i} variant="outline">{t.name ?? t.id ?? ""}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
               {viewingProduct.productDescription && (
                 <div>
                   <p className="text-sm text-muted-foreground">Description</p>

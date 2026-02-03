@@ -10,7 +10,10 @@ export function getRepositoryPermalink(repositoryId: string): string {
   return `/repositories/${repositoryId}`;
 }
 
-export function getApplicationPermalink(appId: string): string {
+export function getApplicationPermalink(appId: string, gatewayName?: string): string {
+  if (gatewayName) {
+    return `/${gatewayName}/applications/${appId}`;
+  }
   return `/applications/${appId}`;
 }
 
@@ -21,9 +24,12 @@ export function getExperimentPermalink(experimentId: string): string {
 /**
  * Get permalink for a catalog resource based on its type
  */
-export function getCatalogResourcePermalink(resourceId: string, resourceType: "DATASET" | "REPOSITORY"): string {
+export function getCatalogResourcePermalink(resourceId: string, resourceType: "DATASET" | "REPOSITORY" | "APPLICATION"): string {
   if (resourceType === "DATASET") {
     return getDatasetPermalink(resourceId);
+  }
+  if (resourceType === "APPLICATION") {
+    return `/catalog/APPLICATION/${resourceId}`;
   }
   return getRepositoryPermalink(resourceId);
 }
